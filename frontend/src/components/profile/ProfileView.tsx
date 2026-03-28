@@ -17,6 +17,16 @@ export function ProfileView() {
   const displayName = profile?.display_name || profile?.username || 'User'
   const email = profile?.email || user?.email || ''
 
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center pt-32">
+        <span className="material-symbols-outlined text-primary-container text-4xl animate-spin">
+          progress_activity
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 max-w-2xl mx-auto space-y-8 mt-6">
       <section className="flex flex-col items-center pt-4">
@@ -43,7 +53,7 @@ export function ProfileView() {
         karma={profile?.karma ?? 0}
         karmaWeekly={0}
         trustScore={Number(profile?.trust_score ?? 50)}
-        streakDays={profile?.current_streak ?? 0}
+        streakDays={0}
       />
 
       <BadgeGrid badges={MOCK_PROFILE.badges} />

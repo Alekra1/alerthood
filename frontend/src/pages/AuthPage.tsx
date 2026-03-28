@@ -6,29 +6,31 @@ export function AuthPage() {
   const { user, loading, signIn, signUp } = useAuth()
   const navigate = useNavigate()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
-  const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   if (!loading && user) return <Navigate to="/map" replace />
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
 
-    if (mode === 'signup' && username.includes('@')) {
-      setError('Username cannot be an email address.')
+    const form = new FormData(e.currentTarget)
+    const emailVal = (form.get('email') as string).trim()
+    const passwordVal = form.get('password') as string
+    const usernameVal = (form.get('username') as string ?? '').trim()
+    const displayNameVal = (form.get('displayName') as string ?? '').trim()
+
+    if (mode === 'signup' && (!usernameVal || usernameVal.includes('@'))) {
+      setError(!usernameVal ? 'Username is required.' : 'Username cannot be an email address.')
       setSubmitting(false)
       return
     }
 
     const err = mode === 'login'
-      ? await signIn(email, password)
-      : await signUp(email, password, username, displayName)
+      ? await signIn(emailVal, passwordVal)
+      : await signUp(emailVal, passwordVal, usernameVal, displayNameVal)
 
     setSubmitting(false)
 
@@ -83,7 +85,7 @@ export function AuthPage() {
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {mode === 'signup' && (
               <>
                 <div>
@@ -92,8 +94,7 @@ export function AuthPage() {
                   </label>
                   <input
                     type="text"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
+                    name="username"
                     required
                     autoComplete="off"
                     placeholder="neighborhood_watch"
@@ -106,8 +107,7 @@ export function AuthPage() {
                   </label>
                   <input
                     type="text"
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
+                    name="displayName"
                     autoComplete="off"
                     placeholder="Alex R."
                     className="w-full bg-surface-container-high border-2 border-black px-3 py-2 font-body text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary-container"
@@ -122,8 +122,7 @@ export function AuthPage() {
               </label>
               <input
                 type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                name="email"
                 required
                 autoComplete="off"
                 placeholder="you@example.com"
@@ -137,8 +136,7 @@ export function AuthPage() {
               </label>
               <input
                 type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
+                name="password"
                 required
                 minLength={6}
                 autoComplete="off"
