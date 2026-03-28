@@ -8,20 +8,28 @@ import { AlertBottomSheet } from './AlertBottomSheet'
 
 const MAP_CENTER: [number, number] = [41.882, -87.631]
 const MAP_ZOOM = 14
+const MAP_MIN_ZOOM = 3
+// Clamp panning to the world bounds so the viewport never shows white space outside tiles
+const WORLD_BOUNDS: [[number, number], [number, number]] = [[-85.051129, -180], [85.051129, 180]]
 
 const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
 
 export function MapView() {
-  const [selectedThreat, setSelectedThreat] = useState<Threat | null>(MOCK_THREATS[0])
+  const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null)
 
   const homeArea = MOCK_PROFILE.areas.find((a) => a.name === 'HOME')
 
   return (
     <div className="relative w-full h-full">
+      {/* z-0 creates an isolated stacking context so Leaflet's internal z-indexes (400–700) don't bleed out */}
+      <div className="absolute inset-0 z-0">
       <MapContainer
         center={MAP_CENTER}
         zoom={MAP_ZOOM}
+        minZoom={MAP_MIN_ZOOM}
+        maxBounds={WORLD_BOUNDS}
+        maxBoundsViscosity={1}
         className="w-full h-full"
         zoomControl
         attributionControl={false}
@@ -39,6 +47,7 @@ export function MapView() {
           />
         ))}
       </MapContainer>
+      </div>
 
       {selectedThreat && (
         <AlertBottomSheet

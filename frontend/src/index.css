@@ -58,6 +58,11 @@ body {
   max-height: none;
 }
 
+/* Match unloaded tile background to the CARTO dark tile color */
+.leaflet-container {
+  background: #1a1a1a;
+}
+
 #root {
   min-height: 100dvh;
   display: flex;
