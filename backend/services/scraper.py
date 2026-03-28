@@ -157,6 +157,8 @@ async def fetch_latest_gdelt_events() -> list[dict]:
             "source_type": "news",
             "source_url": source_url,
             "relevance_score": min(100, int(abs(goldstein) * 10)),
+            "_lat": lat,  # used by run_scraper for area matching, removed before insert
+            "_lng": lng,
         })
 
     logger.info("Fetched %d relevant events from GDELT", len(events))
@@ -186,13 +188,30 @@ async def run_scraper():
         logger.info("No new events from GDELT")
         return
 
+    # Match events to nearest area, drop events that don't fall in any area
+    matched = []
+    for event in events:
+        result = db.rpc("find_nearest_area", {"lat": event["_lat"], "lng": event["_lng"]}).execute()
+        area_id = result.data
+        if area_id:
+            event["area_id"] = area_id
+            del event["_lat"]
+            del event["_lng"]
+            matched.append(event)
+
+    if not matched:
+        logger.info("No GDELT events matched any monitored area")
+        return
+
+    logger.info("Matched %d/%d events to areas", len(matched), len(events))
+
     inserted = 0
-    for i in range(0, len(events), 50):
-        chunk = events[i : i + 50]
+    for i in range(0, len(matched), 50):
+        chunk = matched[i : i + 50]
         try:
             db.table("events").insert(chunk).execute()
             inserted += len(chunk)
         except Exception:
             logger.exception("Failed to insert chunk %d-%d of %d events", i, i + len(chunk), len(events))
 
-    logger.info("Inserted %d/%d events into Supabase", inserted, len(events))
+    logger.info("Inserted %d/%d events into Supabase", inserted, len(matched))
