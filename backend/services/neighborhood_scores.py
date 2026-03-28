@@ -1,6 +1,6 @@
 import logging
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 from db import get_supabase
 
@@ -11,7 +11,7 @@ async def compute_area_crime_stats(area_id: str, radius_km: float = 5.0) -> dict
     """Count crimes in an area and compute crime rate per km²."""
     sb = get_supabase()
 
-    since = (datetime.utcnow() - timedelta(days=90)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
 
     result = (
         sb.table("events")
@@ -40,17 +40,12 @@ def compute_safety_score(
     """
     Composite safety score 0-100 (higher = safer).
 
-    Formula:
-    - crime_rate_pct = min(crime_rate / max_crime_rate, 1.0) * 100
-    - poverty_pct = min(poverty_index / 50, 1.0) * 100
-    - recency_weight = crime_rate_pct
-    - score = 100 - (crime_rate_pct * 0.6 + poverty_pct * 0.2 + recency_weight * 0.2)
+    Formula: 100 - (crime_rate_pct * 0.7 + poverty_pct * 0.3)
     """
     crime_rate_pct = min(crime_rate_per_km2 / max_crime_rate, 1.0) * 100
     poverty_pct = min(poverty_index / 50.0, 1.0) * 100
-    recency_weight = crime_rate_pct
 
-    score = 100 - (crime_rate_pct * 0.6 + poverty_pct * 0.2 + recency_weight * 0.2)
+    score = 100 - (crime_rate_pct * 0.7 + poverty_pct * 0.3)
     return round(max(0, min(100, score)), 2)
 
 
@@ -76,25 +71,31 @@ async def refresh_all_scores() -> int:
     max_rate = max((s["crime_rate_per_km2"] for _, s in stats), default=1.0) or 1.0
 
     updated = 0
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
     for area, s in stats:
-        score = compute_safety_score(
-            s["crime_rate_per_km2"],
-            float(area.get("poverty_index", 0)),
-            max_crime_rate=max_rate,
-        )
+        try:
+            score = compute_safety_score(
+                s["crime_rate_per_km2"],
+                float(area.get("poverty_index", 0)),
+                max_crime_rate=max_rate,
+            )
 
-        sb.table("areas").update(
-            {
-                "crime_count": s["crime_count"],
-                "crime_rate_per_km2": s["crime_rate_per_km2"],
-                "safety_score": score,
-                "score_updated_at": now,
-            }
-        ).eq("id", area["id"]).execute()
+            sb.table("areas").update(
+                {
+                    "crime_count": s["crime_count"],
+                    "crime_rate_per_km2": s["crime_rate_per_km2"],
+                    "safety_score": score,
+                    "score_updated_at": now,
+                }
+            ).eq("id", area["id"]).execute()
 
-        updated += 1
+            updated += 1
+        except Exception as e:
+            logger.error(
+                f"Failed to update safety score for area {area.get('id')}: {e}",
+                exc_info=True,
+            )
 
     logger.info(f"Refreshed safety scores for {updated} areas")
     return updated

@@ -39,12 +39,12 @@ def _scraper_task_done(task: asyncio.Task):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # One-time historical import on first boot
+    # One-time historical import on first boot (skips if already imported)
     try:
         count = await import_acled_data(days_back=90, limit=500)
         logger.info(f"Historical import: {count} events from ACLED")
     except Exception as e:
-        logger.warning(f"Historical import failed: {e}")
+        logger.error(f"Historical import failed: {e}", exc_info=True)
 
     task = asyncio.create_task(scraper_loop())
     task.add_done_callback(_scraper_task_done)

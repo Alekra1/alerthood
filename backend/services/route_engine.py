@@ -1,7 +1,12 @@
+import logging
 import math
+
+from fastapi import HTTPException
 
 from db import get_supabase
 from models.schemas import RouteRequest, RouteWaypoint, SafeRouteResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
@@ -48,22 +53,39 @@ async def calculate_safe_route(req: RouteRequest) -> SafeRouteResponse:
     min_lng = min(req.origin_lng, req.dest_lng) - 0.02
     max_lng = max(req.origin_lng, req.dest_lng) + 0.02
 
-    center_lng = (min_lng + max_lng) / 2
-    center_lat = (min_lat + max_lat) / 2
-    radius = _haversine(min_lat, min_lng, max_lat, max_lng)
+    # Cap bounding box size to prevent continent-sized scans
+    if (max_lat - min_lat) > 1.0 or (max_lng - min_lng) > 1.0:
+        raise HTTPException(
+            status_code=400,
+            detail="Route distance too large for safe-route calculation",
+        )
 
-    # Fetch active events in bounding box using RPC
-    result = sb.rpc(
-        "events_in_bbox",
-        {
-            "min_lat": min_lat,
-            "max_lat": max_lat,
-            "min_lng": min_lng,
-            "max_lng": max_lng,
-        },
-    ).execute()
+    # Fetch active events in bounding box
+    try:
+        result = sb.rpc(
+            "events_in_bbox",
+            {
+                "min_lat": min_lat,
+                "max_lat": max_lat,
+                "min_lng": min_lng,
+                "max_lng": max_lng,
+            },
+        ).execute()
+    except Exception as e:
+        logger.error(f"Failed to fetch events for safe route: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to check for safety events along this route. Please try again later.",
+        )
 
-    events = result.data or []
+    if result.data is None:
+        logger.error("events_in_bbox RPC returned None — possible DB function error")
+        raise HTTPException(
+            status_code=503,
+            detail="Safety data is temporarily unavailable. Please try again later.",
+        )
+
+    events = result.data
 
     # Generate waypoints along direct path
     num_points = 10
@@ -85,12 +107,13 @@ async def calculate_safe_route(req: RouteRequest) -> SafeRouteResponse:
             dist = _haversine(lat, lng, ev_lat, ev_lng)
             if dist < danger_radius:
                 # Shift perpendicular to route direction
+                # Route direction vector: (dx, dy); perpendicular: (-dy, dx)
                 dx = req.dest_lng - req.origin_lng
                 dy = req.dest_lat - req.origin_lat
                 length = math.sqrt(dx * dx + dy * dy) or 1
                 offset = 0.005  # ~500m
-                lat += -dx / length * offset
-                lng += dy / length * offset
+                lat += -dy / length * offset
+                lng += dx / length * offset
                 avoided += 1
                 break
 

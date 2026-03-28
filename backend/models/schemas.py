@@ -92,15 +92,15 @@ class RouteRequest(BaseModel):
 
 
 class RouteWaypoint(BaseModel):
-    lat: float
-    lng: float
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
 
 
 class SafeRouteResponse(BaseModel):
-    waypoints: list[RouteWaypoint]
+    waypoints: list[RouteWaypoint] = Field(min_length=2)
     google_maps_url: str
-    avoided_events: int
-    distance_km: float
+    avoided_events: int = Field(ge=0)
+    distance_km: float = Field(ge=0)
 
 
 # --- Neighborhood Scores ---
@@ -109,13 +109,13 @@ class SafeRouteResponse(BaseModel):
 class NeighborhoodScore(BaseModel):
     area_id: str
     area_name: str
-    crime_count: int
-    crime_rate_per_km2: float
-    poverty_index: float
-    safety_score: float
-    score_updated_at: str | None
+    crime_count: int = Field(ge=0)
+    crime_rate_per_km2: float = Field(ge=0)
+    poverty_index: float = Field(ge=0, le=50)
+    safety_score: float = Field(ge=0, le=100)
+    score_updated_at: datetime | None
 
 
 class NeighborhoodScoresResponse(BaseModel):
     scores: list[NeighborhoodScore]
-    computed_at: str
+    computed_at: datetime
