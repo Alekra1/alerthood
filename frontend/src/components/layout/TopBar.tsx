@@ -1,8 +1,13 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useNotifications } from '../../hooks/useNotifications'
+import { NotificationPanel } from './NotificationPanel'
 
 export function TopBar() {
   const { user, profile } = useAuth()
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(user?.id ?? null)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <nav className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-background border-b-2 border-black shadow-hard">
@@ -18,14 +23,29 @@ export function TopBar() {
         </span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         {user && (
           <button
+            onClick={() => setIsOpen((o) => !o)}
             className="relative p-2 hover:bg-surface-container-high active:translate-x-[2px] active:translate-y-[2px] transition-none"
-            aria-label="Notifications"
+            aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
           >
             <span className="material-symbols-outlined text-on-surface">notifications</span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 bg-primary-container border border-black rounded-full flex items-center justify-center text-[8px] font-black text-on-primary-container">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </button>
+        )}
+
+        {isOpen && user && (
+          <NotificationPanel
+            notifications={notifications}
+            onMarkAsRead={markAsRead}
+            onMarkAllAsRead={markAllAsRead}
+            onClose={() => setIsOpen(false)}
+          />
         )}
 
         {user ? (

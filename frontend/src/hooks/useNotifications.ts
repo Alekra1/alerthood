@@ -2,44 +2,42 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Notification } from '../types'
 
-export function useNotifications() {
+export function useNotifications(userId: string | null) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const userIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    if (!userId) return
     let channel: ReturnType<typeof supabase.channel> | null = null
 
     async function init() {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .single()
-
-      if (!profile) return
-      userIdRef.current = profile.id
+      userIdRef.current = userId
 
       const { data } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', profile.id)
+        .eq('user_id', userId)
+        .eq('is_read', false)
         .order('created_at', { ascending: false })
 
       if (data) setNotifications(data.map(toNotification))
 
       channel = supabase
-        .channel('notifications-' + profile.id)
+        .channel('notifications-' + userId)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` },
+          { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
           (payload) => {
             if (payload.eventType === 'INSERT') {
               setNotifications((prev) => [toNotification(payload.new), ...prev])
             } else if (payload.eventType === 'UPDATE') {
-              setNotifications((prev) =>
-                prev.map((n) => (n.id === payload.new.id ? toNotification(payload.new) : n)),
-              )
+              if (payload.new.is_read) {
+                setNotifications((prev) => prev.filter((n) => n.id !== payload.new.id))
+              } else {
+                setNotifications((prev) =>
+                  prev.map((n) => (n.id === payload.new.id ? toNotification(payload.new) : n)),
+                )
+              }
             }
           },
         )
@@ -48,7 +46,7 @@ export function useNotifications() {
 
     init()
     return () => { channel?.unsubscribe() }
-  }, [])
+  }, [userId])
 
   async function markAsRead(id: string) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)

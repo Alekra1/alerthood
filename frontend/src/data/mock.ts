@@ -27,7 +27,6 @@ export const MOCK_THREATS: Threat[] = [
     lat: 41.900,
     lng: -87.625,
     minutesAgo: 12,
-    commentCount: 8,
     upvotes: 21,
     downvotes: 1,
     source: 'Community Report',
