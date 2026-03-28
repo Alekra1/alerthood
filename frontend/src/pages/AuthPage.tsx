@@ -20,6 +20,12 @@ export function AuthPage() {
     setError(null)
     setSubmitting(true)
 
+    if (mode === 'signup' && username.includes('@')) {
+      setError('Username cannot be an email address.')
+      setSubmitting(false)
+      return
+    }
+
     const err = mode === 'login'
       ? await signIn(email, password)
       : await signUp(email, password, username, displayName)
@@ -89,7 +95,7 @@ export function AuthPage() {
                     value={username}
                     onChange={e => setUsername(e.target.value)}
                     required
-                    autoComplete="username"
+                    autoComplete="off"
                     placeholder="neighborhood_watch"
                     className="w-full bg-surface-container-high border-2 border-black px-3 py-2 font-body text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary-container"
                   />
