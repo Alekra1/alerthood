@@ -12,7 +12,6 @@ export interface Threat {
   lat: number
   lng: number
   minutesAgo: number
-  commentCount: number
   upvotes: number
   downvotes: number
   source: string

@@ -39,7 +39,7 @@ export function FeedView() {
 
       const { data: events } = await supabase
         .from('events')
-        .select('id, title, threat_type, severity, relevance_score, comment_count, occurred_at, location_label, source_type')
+        .select('id, title, threat_type, severity, relevance_score, occurred_at, location_label, source_type')
         .eq('status', 'active')
         .order('occurred_at', { ascending: false })
         .limit(50)
@@ -89,7 +89,6 @@ export function FeedView() {
               lat: 0,
               lng: 0,
               minutesAgo,
-              commentCount: e.comment_count,
               upvotes: upMap[e.id] ?? 0,
               downvotes: downMap[e.id] ?? 0,
               source: e.source_type,

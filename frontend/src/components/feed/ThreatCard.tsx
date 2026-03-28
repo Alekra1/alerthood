@@ -109,13 +109,6 @@ export function ThreatCard({ threat, initialVote = null, onViewMap }: ThreatCard
         <div className="flex items-center justify-between border-t-2 border-black pt-4">
           <div className="flex items-center gap-4">
             <button
-              className="flex items-center gap-1.5 hover:text-primary transition-none"
-              aria-label={`${threat.commentCount} comments`}
-            >
-              <span className="material-symbols-outlined text-lg">comment</span>
-              <span className="font-label font-bold text-xs">{threat.commentCount}</span>
-            </button>
-            <button
               onClick={() => handleVote('up')}
               className={`flex items-center gap-1.5 transition-none ${vote === 'up' ? 'text-error' : ''}`}
               aria-label={`Upvote (${upvotes})`}
