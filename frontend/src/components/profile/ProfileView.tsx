@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import { MOCK_PROFILE } from '../../data/mock'
+import type { MonitoredArea } from '../../types'
 import { MetricsBento } from './MetricsBento'
 import { BadgeGrid } from './BadgeGrid'
 import { MonitoredAreaCard } from './MonitoredAreaCard'
@@ -8,6 +11,38 @@ import { MonitoredAreaCard } from './MonitoredAreaCard'
 export function ProfileView() {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
+  const [areas, setAreas] = useState<MonitoredArea[]>([])
+
+  useEffect(() => {
+    if (!user) return
+
+    async function loadAreas() {
+      const { data } = await supabase
+        .from('user_area_subscriptions')
+        .select('id, label, area:areas(id, name, lat, lng)')
+        .eq('user_id', user!.id)
+
+      if (data) {
+        setAreas(
+          data.map((sub: any) => ({
+            id: sub.id,
+            name: sub.label?.toUpperCase() ?? 'AREA',
+            radiusMiles: 5,
+            neighborhood: sub.area?.name ?? '',
+            lat: sub.area?.lat ?? 0,
+            lng: sub.area?.lng ?? 0,
+            isActive: true,
+            notifyCrime: true,
+            notifyUtility: true,
+            notifyNatural: true,
+            notifyDisturbance: false,
+          })),
+        )
+      }
+    }
+
+    loadAreas()
+  }, [user])
 
   async function handleLogout() {
     await signOut()
@@ -26,6 +61,8 @@ export function ProfileView() {
       </div>
     )
   }
+
+  const displayAreas = areas.length > 0 ? areas : MOCK_PROFILE.areas
 
   return (
     <div className="px-4 max-w-2xl mx-auto space-y-8 mt-6">
@@ -62,7 +99,7 @@ export function ProfileView() {
           <span className="w-6 h-1 bg-secondary inline-block" />
           MONITORED AREAS
         </h3>
-        {MOCK_PROFILE.areas.map((area, i) => (
+        {displayAreas.map((area, i) => (
           <MonitoredAreaCard
             key={area.id}
             area={area}
