@@ -139,7 +139,7 @@ async def run_nws_scraper():
             event["area_id"] = area_id
             del event["_lat"]
             del event["_lng"]
-            alert_id = event.pop("_alert_id")
+            event.pop("_alert_id")
             # Dedup by source_url
             if event.get("source_url"):
                 existing = db.table("events").select("id", count="exact").eq("source_type", "nws").eq("source_url", event["source_url"]).execute()

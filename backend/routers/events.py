@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 
 from auth import get_current_user

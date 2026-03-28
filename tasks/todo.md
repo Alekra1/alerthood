@@ -46,7 +46,9 @@
 
 ## 🔲 TODO
 
-### Auth & Account (HIGH PRIORITY — next up)
+### Dev 1 (Olexii) — Frontend Lead
+
+**Auth & Account (HIGH PRIORITY — next up)**
 - [ ] `AuthPage.tsx` — email/password sign-up/sign-in UI (neo-brutalist styled)
 - [ ] Google OAuth sign-in button on AuthPage
 - [ ] Configure Google OAuth provider in Supabase (Google Cloud Console credentials)
@@ -55,36 +57,66 @@
 - [ ] Auth guard on routes — redirect to `/auth` if not logged in
 - [ ] Wire profile page to real user data
 
-### Wire Frontend to Supabase (replace mock data)
+**Wire Frontend to Supabase (replace mock data)**
 - [ ] `useEvents.ts` — fetch events from Supabase, replace mock data
 - [ ] `useAreas.ts` — fetch areas from Supabase
 - [ ] `useProfile.ts` — fetch user profile + subscriptions
 - [ ] Wire feed to Supabase realtime — new events appear without refresh
-- [ ] Wire map markers to real event data
+- [ ] Wire map markers to real event data (scraper events have lat/lng/severity)
 
-### Heatmap Layer
-- [ ] MapLibre heatmap layer using `/api/events/heatmap` — green→yellow→red gradient
+**Heatmap Layer**
+- [ ] Leaflet heatmap layer using `/api/events/heatmap` — green→yellow→red gradient
 - [ ] Time-of-day toggle on map (morning/afternoon/evening/night)
 
-### Profile & Subscriptions
-- [ ] Area subscription flow — select/add monitored areas
-- [ ] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
+**"Land & Know" Briefing UI**
+- [ ] Briefing UI component — push notification or bottom sheet on app open
 
-### Notifications UI
+**Integration**
+- [ ] Full flow test: signup → subscribe → see events on map + feed → toggle notifications
+
+---
+
+### Dev 2 (You) — Backend + Deploy
+
+**"Land & Know" Instant Briefing**
+- [ ] `GET /api/briefing?lat=&lng=` — backend endpoint returning:
+  - Current risk level of area
+  - Events reported in last 24hrs nearby
+  - One "watch out for" tip (pickpockets near market, avoid X street at night)
+- [ ] Geofence trigger logic — detect when user arrives at new location
+
+**Deploy (execute)**
+- [ ] Run `fastapi deploy` on FastAPI Cloud (dev 1 has beta access)
+- [ ] Connect GitHub repo to Cloudflare Pages, set env vars
+- [ ] Post-deploy checklist (see DEPLOY.md)
+
+**Stretch**
+- [ ] Safe route display — colored polyline on map between two points
+
+---
+
+### Dev 3 (Egor) — Novice-Friendly Frontend
+
+**Notifications UI**
 - [ ] Notification bell in `TopBar` with unread count badge
 - [ ] Notification list/dropdown
 
-### Integration
+**Profile & Subscriptions**
+- [ ] Area subscription flow — select/add monitored areas
+- [ ] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
+
+**Integration**
 - [ ] "VIEW MAP" on feed cards → navigate to Map centered on that event
-- [ ] Full flow test: signup → subscribe → see events on map + feed → toggle notifications
 
-### Deploy
-- [ ] Frontend → Cloudflare Pages
-- [ ] Backend → FastAPI Cloud
-
-### Stretch Goals
-- [ ] Safe route display — A* over heatmap grid or colored line between two points
+**Stretch**
 - [ ] Business suggestions along route (static icons)
+
+---
+
+### ✅ Deploy (Done)
+- [x] Frontend → Cloudflare Pages (wrangler.toml + GitHub Actions CD)
+- [x] Backend → FastAPI Cloud (pyproject.toml + uv + DEPLOY.md guide)
+- [x] CI/CD — GitHub Actions: ruff lint + frontend build on PRs, auto-deploy on push to main
 
 ---
 

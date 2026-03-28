@@ -119,7 +119,7 @@ async def run_usgs_scraper():
             event["area_id"] = area_id
             del event["_lat"]
             del event["_lng"]
-            dedup = event.pop("_dedup_key")
+            event.pop("_dedup_key")
             # Dedup check
             existing = db.table("events").select("id", count="exact").eq("source_type", "usgs").eq("source_url", event.get("source_url", "")).execute()
             if existing.count and existing.count > 0:
