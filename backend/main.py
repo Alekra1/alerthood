@@ -10,6 +10,10 @@ from routers import events, areas
 from routers.routes import router as routes_router
 from routers.scores import router as scores_router
 from services.scraper import run_scraper
+from services.usgs_scraper import run_usgs_scraper
+from services.nws_scraper import run_nws_scraper
+from services.uk_police_scraper import run_uk_police_scraper
+from services.openweather_scraper import run_openweather_scraper
 from services.historical_import import import_acled_data
 from services.neighborhood_scores import refresh_all_scores
 
@@ -22,8 +26,12 @@ async def scraper_loop():
     interval = settings.scraper_interval_minutes * 60
     while True:
         try:
-            logger.info("Running GDELT scraper...")
+            logger.info("Running all scrapers...")
             await run_scraper()
+            await run_usgs_scraper()
+            await run_nws_scraper()
+            await run_uk_police_scraper()
+            await run_openweather_scraper()
             await refresh_all_scores()
         except Exception:
             logger.exception("Scraper loop iteration failed; will retry next cycle")
