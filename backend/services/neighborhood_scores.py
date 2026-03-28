@@ -70,32 +70,29 @@ async def refresh_all_scores() -> int:
 
     max_rate = max((s["crime_rate_per_km2"] for _, s in stats), default=1.0) or 1.0
 
-    updated = 0
     now = datetime.now(timezone.utc).isoformat()
 
+    rows = []
     for area, s in stats:
-        try:
-            score = compute_safety_score(
-                s["crime_rate_per_km2"],
-                float(area.get("poverty_index", 0)),
-                max_crime_rate=max_rate,
-            )
+        score = compute_safety_score(
+            s["crime_rate_per_km2"],
+            float(area.get("poverty_index", 0)),
+            max_crime_rate=max_rate,
+        )
+        rows.append({
+            "id": area["id"],
+            "crime_count": s["crime_count"],
+            "crime_rate_per_km2": s["crime_rate_per_km2"],
+            "safety_score": score,
+            "score_updated_at": now,
+        })
 
-            sb.table("areas").update(
-                {
-                    "crime_count": s["crime_count"],
-                    "crime_rate_per_km2": s["crime_rate_per_km2"],
-                    "safety_score": score,
-                    "score_updated_at": now,
-                }
-            ).eq("id", area["id"]).execute()
-
-            updated += 1
-        except Exception as e:
-            logger.error(
-                f"Failed to update safety score for area {area.get('id')}: {e}",
-                exc_info=True,
-            )
+    try:
+        sb.table("areas").upsert(rows, on_conflict="id").execute()
+        updated = len(rows)
+    except Exception as e:
+        logger.error(f"Failed to batch update safety scores: {e}", exc_info=True)
+        updated = 0
 
     logger.info(f"Refreshed safety scores for {updated} areas")
     return updated
