@@ -62,7 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signUp(email: string, password: string, username: string, displayName: string): Promise<string | null> {
     const { data, error } = await supabase.auth.signUp({ email, password })
-    if (error) return error.message
+    if (error) {
+      if (error.message.toLowerCase().includes('rate limit') || error.status === 429) {
+        return 'Too many sign-up attempts. Please wait a few minutes and try again.'
+      }
+      return error.message
+    }
     if (!data.user) return 'Sign up failed'
 
     const { error: profileError } = await supabase.from('profiles').insert({
