@@ -237,3 +237,7 @@ logs/
 # Frontend build output
 frontend/dist/
 frontend/node_modules/
+.mcp.json
+.claude/
+.agents/skills/*
+skills-lock.json
