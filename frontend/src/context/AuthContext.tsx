@@ -37,14 +37,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select('id, email, username, display_name, avatar_url, karma, trust_score')
       .eq('id', userId)
       .single()
-    setProfile(data ?? null)
+
+    if (data) {
+      setProfile(data)
+      return
+    }
+
+    // No profile row yet — can happen for OAuth users whose trigger didn't fire.
+    // Create one from auth metadata.
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { setProfile(null); return }
+
+    const meta = authUser.user_metadata ?? {}
+    const emailPart = authUser.email?.split('@')[0] ?? 'user'
+    await supabase.from('profiles').upsert({
+      id: userId,
+      email: authUser.email ?? null,
+      username: meta.username ?? emailPart,
+      display_name: meta.display_name ?? meta.full_name ?? meta.name ?? emailPart,
+      avatar_url: meta.avatar_url ?? null,
+    })
+
+    const { data: created } = await supabase
+      .from('profiles')
+      .select('id, email, username, display_name, avatar_url, karma, trust_score')
+      .eq('id', userId)
+      .single()
+    setProfile(created ?? null)
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) await fetchProfile(session.user.id)
       setLoading(false)
     })
 
