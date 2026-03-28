@@ -188,11 +188,14 @@ async def run_scraper():
         logger.info("No new events from GDELT")
         return
 
-    # Match events to nearest area, drop events that don't fall in any area
+    # Match events to nearest area in a single batch RPC call
+    points = [{"lat": e["_lat"], "lng": e["_lng"]} for e in events]
+    batch_result = db.rpc("find_nearest_area_batch", {"points": points}).execute()
+    area_by_idx = {row["idx"]: row["area_id"] for row in (batch_result.data or []) if row["area_id"]}
+
     matched = []
-    for event in events:
-        result = db.rpc("find_nearest_area", {"lat": event["_lat"], "lng": event["_lng"]}).execute()
-        area_id = result.data
+    for i, event in enumerate(events):
+        area_id = area_by_idx.get(i)
         if area_id:
             event["area_id"] = area_id
             del event["_lat"]
