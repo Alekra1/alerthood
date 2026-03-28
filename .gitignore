@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -213,3 +213,27 @@ AGENTS.md
 docs/
 map-check.png
 .playwright-mcp
+.env
+.env.local
+.env.*.local
+
+# Temp / OS files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+
+# Editor
+.idea/
+.vscode/
+
+# Frontend build output
+frontend/dist/
+frontend/node_modules/
