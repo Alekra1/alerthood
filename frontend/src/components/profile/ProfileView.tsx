@@ -10,7 +10,7 @@ import { MonitoredAreaCard } from './MonitoredAreaCard'
 import { AreaPickerMap } from './AreaPickerMap'
 
 export function ProfileView() {
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, loading, signOut } = useAuth()
   const navigate = useNavigate()
   const [areas, setAreas] = useState<MonitoredArea[]>([])
   const [showPicker, setShowPicker] = useState(false)
@@ -56,7 +56,7 @@ export function ProfileView() {
   const displayName = profile?.display_name || profile?.username || 'User'
   const email = profile?.email || user?.email || ''
 
-  if (!profile) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center pt-32">
         <span className="material-symbols-outlined text-primary-container text-4xl animate-spin">
@@ -65,6 +65,22 @@ export function ProfileView() {
       </div>
     )
   }
+
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center pt-32 gap-4">
+        <span className="material-symbols-outlined text-error text-4xl">error</span>
+        <p className="font-body text-on-surface-variant text-sm">Could not load profile. Try signing out and back in.</p>
+        <button
+          onClick={handleLogout}
+          className="px-6 py-2 border-2 border-black font-headline font-bold text-error uppercase tracking-widest"
+        >
+          SIGN OUT
+        </button>
+      </div>
+    )
+  }
+
 
   return (
     <>
