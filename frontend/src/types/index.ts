@@ -14,6 +14,7 @@ export interface Threat {
   minutesAgo: number
   commentCount: number
   upvotes: number
+  downvotes: number
   source: string
 }
 

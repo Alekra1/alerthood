@@ -14,6 +14,7 @@ export const MOCK_THREATS: Threat[] = [
     minutesAgo: 5,
     commentCount: 8,
     upvotes: 12,
+    downvotes: 2,
     source: 'Community Report',
   },
   {
@@ -29,6 +30,7 @@ export const MOCK_THREATS: Threat[] = [
     minutesAgo: 12,
     commentCount: 8,
     upvotes: 21,
+    downvotes: 1,
     source: 'Community Report',
   },
   {
@@ -44,6 +46,7 @@ export const MOCK_THREATS: Threat[] = [
     minutesAgo: 45,
     commentCount: 3,
     upvotes: 7,
+    downvotes: 3,
     source: 'City Infrastructure',
   },
   {
@@ -59,6 +62,7 @@ export const MOCK_THREATS: Threat[] = [
     minutesAgo: 2,
     commentCount: 14,
     upvotes: 35,
+    downvotes: 0,
     source: 'City Emergency',
   },
   {
@@ -74,6 +78,7 @@ export const MOCK_THREATS: Threat[] = [
     minutesAgo: 120,
     commentCount: 15,
     upvotes: 4,
+    downvotes: 8,
     source: 'Community Report',
   },
 ]
