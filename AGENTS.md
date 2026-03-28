@@ -55,3 +55,14 @@
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+
+## What we are building
+
+MVP: The main screen is a map (heatmap) showing safe and unsafe areas based on historical data. There will be a possibility of building routes through safe areas (monetization: suggest businesses to pop into). 
+
+A user (free tier) will have two main neighborhoods/areas: one where he lives, the other one where he plans a trip to. The app will suggest safest spots to hang out in and notify users about real-time threats if they’re happening close to them, or send alerts (in safe mode?) if a user is going into a historically unsafe zone.
+
+It will also scrape news from websites in real time to update the heatmap, and rely on the time of day to accurately predict whether a zone is generally safe or unsafe (again, historically)
+
+NOT MVP: As well as that, users will be able to add their own threats in the feed.

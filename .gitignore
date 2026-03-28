@@ -207,3 +207,9 @@ AGENTS.md
 marimo/_lsp/
 __marimo__/
 .worktrees/
+AGENTS.md
+.opencode/
+
+docs/
+map-check.png
+.playwright-mcp
