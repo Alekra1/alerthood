@@ -61,15 +61,15 @@
 - Interactive map via **MapLibre GL** (open-source, no API key needed)
 
 ### Tooling
-- Supabase CLI for local dev, migrations, and type generation
-- FastAPI with `alembic` for any migration needs outside Supabase
+- Supabase CLI for local dev, migrations, and type generation (`supabase gen types typescript`)
 - `pnpm` for frontend package management
 
 ### Architecture
-- FastAPI serves REST API; frontend talks to FastAPI (not Supabase directly)
-- Supabase Auth used via FastAPI middleware (frontend gets JWT, sends to API)
-- Supabase Realtime for push notifications (websocket subscriptions)
-- Map tiles: OpenStreetMap + MapLibre GL JS
+- **Thin API + Supabase Direct** pattern:
+  - **Reads:** Frontend reads directly via Supabase JS client (including Realtime subscriptions)
+  - **Writes:** All mutations go through FastAPI (business logic, karma, badges, streaks, severity)
+  - **Auth:** Supabase Auth issues JWT → frontend stores it → sends to FastAPI in Authorization header → FastAPI validates via Supabase JWT secret
+- Map tiles: CartoDB Dark Matter via MapLibre GL JS (free, no API key)
 
 ## Core Principles
 
