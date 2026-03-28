@@ -21,7 +21,7 @@ from db import get_supabase
 
 logger = logging.getLogger(__name__)
 
-GDELT_LAST_UPDATE_URL = "https://data.gdeltproject.org/gdeltv2/lastupdate.txt"
+GDELT_LAST_UPDATE_URL = "http://data.gdeltproject.org/gdeltv2/lastupdate.txt"
 
 # CAMEO event codes we care about → our threat_type mapping
 # See: https://www.gdeltproject.org/data/lookups/CAMEO.eventcodes.txt
@@ -63,9 +63,9 @@ class _Col:
     EVENT_CODE = 26
     GOLDSTEIN_SCALE = 30
     ACTION_GEO_FULLNAME = 52
-    ACTION_GEO_LAT = 53
-    ACTION_GEO_LONG = 54
-    SOURCE_URL = 57
+    ACTION_GEO_LAT = 56
+    ACTION_GEO_LONG = 57
+    SOURCE_URL = 60
 
 
 def _goldstein_to_severity(score: float) -> str:
