@@ -1,10 +1,83 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../../lib/supabase'
 import { MOCK_PROFILE } from '../../data/mock'
+import type { Badge, UserProfile } from '../../types'
+
+function categoryToColor(category: string): Badge['color'] {
+  if (category === 'streak') return 'secondary'
+  if (category === 'special') return 'tertiary'
+  return 'primary'
+}
 import { MetricsBento } from './MetricsBento'
 import { BadgeGrid } from './BadgeGrid'
 import { MonitoredAreaCard } from './MonitoredAreaCard'
 
 export function ProfileView() {
-  const profile = MOCK_PROFILE
+  const [profile, setProfile] = useState<UserProfile>(MOCK_PROFILE)
+
+  useEffect(() => {
+    async function fetchFirstProfile() {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(`
+          id,
+          username,
+          display_name,
+          karma,
+          trust_score,
+          current_streak,
+          user_area_subscriptions (
+            id,
+            label,
+            notification_crime,
+            notification_infrastructure,
+            notification_natural,
+            notification_disturbance,
+            areas ( name, center )
+          ),
+          user_badges (
+            earned_at,
+            badge_definitions ( id, name, icon, category )
+          )
+        `)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single()
+
+      if (error || !data) return
+
+      setProfile({
+        name: data.display_name ?? data.username,
+        email: `${data.username}`,
+        karma: data.karma ?? 0,
+        karmaWeekly: 0,
+        trustScore: data.trust_score ?? 50,
+        streakDays: data.current_streak ?? 0,
+        badges: (data.user_badges ?? []).map((ub: any) => ({
+          id: ub.badge_definitions.id,
+          name: ub.badge_definitions.name,
+          icon: '',
+          color: categoryToColor(ub.badge_definitions.category),
+          earned: true,
+        })),
+        areas: (data.user_area_subscriptions ?? []).map((sub: any) => ({
+          id: sub.id,
+          name: sub.label.toUpperCase(),
+          radiusMiles: 0,
+          neighborhood: sub.areas?.name?.split(' - ')[1]?.toUpperCase() ?? sub.areas?.name?.toUpperCase() ?? '',
+          lat: 0,
+          lng: 0,
+          isActive: true,
+          notifyCrime: sub.notification_crime,
+          notifyUtility: sub.notification_infrastructure,
+          notifyNatural: sub.notification_natural,
+          notifyDisturbance: sub.notification_disturbance,
+        })),
+      })
+    }
+
+    fetchFirstProfile()
+  }, [])
 
   return (
     <div className="px-4 max-w-2xl mx-auto space-y-8 mt-6">

@@ -18,9 +18,10 @@ create index events_author_id_idx on public.events(author_id);
 -- profiles — gamification columns
 -- ---------------------------------------------------------------------------
 alter table public.profiles
-  add column karma            integer      not null default 0,
-  add column current_streak   integer      not null default 0,
-  add column longest_streak   integer      not null default 0,
+  add column karma            integer       not null default 0,
+  add column trust_score      numeric(5,2)  not null default 50.00,
+  add column current_streak   integer       not null default 0,
+  add column longest_streak   integer       not null default 0,
   add column last_active_date date;
 
 
