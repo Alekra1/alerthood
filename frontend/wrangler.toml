@@ -1,7 +1,0 @@
-[pages]
-name = "alerthood"
-compatibility_date = "2024-09-01"
-
-[pages.build]
-command = "npm run build"
-output_directory = "dist"
