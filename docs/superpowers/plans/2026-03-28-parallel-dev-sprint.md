@@ -46,6 +46,7 @@ backend/
     route_engine.py          # Safe route calculation
     historical_import.py     # ACLED / historical data bulk import
     geocoding.py             # Reverse geocoding for area detection
+    neighborhood_scores.py   # Crime rate + poverty index per area
 ```
 
 ### Modified Files
@@ -70,7 +71,7 @@ backend/
 
 ---
 
-## Dev 1 (Frontend) — Auth + Live Data + Route UI
+## Olexii / Dev 1 (Frontend) — Auth + Live Data + Route UI
 
 ### Task 1.1: Install Supabase JS + Create Client
 
@@ -1122,7 +1123,7 @@ git commit -m "feat: route planner UI with Google Maps export"
 
 ---
 
-## Dev 2 (Fullstack) — Route Engine + Historical Data + Area Detection + Deploy
+## Artem / Dev 2 (Fullstack) — Route Engine + Historical Data + Area Detection + Crime Scores + Deploy
 
 ### Task 2.1: Safe Route API Endpoint
 
@@ -1645,7 +1646,259 @@ git commit -m "chore: add deploy config for backend"
 
 ---
 
-## Dev 3 (Newbie) — Profile + Notifications + QA
+### Task 2.6: Neighborhood Crime & Safety Scores
+
+**Files:**
+- Create: `backend/services/neighborhood_scores.py`
+- Create: `backend/routers/scores.py`
+- Modify: `backend/main.py`
+- Modify: `backend/models/schemas.py`
+- Supabase migration: add `safety_score` columns to `areas` table
+
+**Concept:** Each neighborhood gets a composite safety score derived from:
+1. **Crime count** — number of crime-type events in the area (from our events table)
+2. **Crime rate** — crimes per km² normalized across all areas
+3. **Poverty index** — external data from Census/World Bank API (or seeded static data for MVP)
+4. **Composite score** — weighted formula: `100 - (crime_rate_pct * 0.6 + poverty_pct * 0.2 + recency_weight * 0.2)`
+
+- [ ] **Step 1: Add safety score columns via migration**
+
+Run this SQL in Supabase:
+
+```sql
+-- Add safety scoring columns to areas
+alter table public.areas
+  add column if not exists crime_count int not null default 0,
+  add column if not exists crime_rate_per_km2 numeric(8,2) not null default 0,
+  add column if not exists poverty_index numeric(5,2) not null default 0,
+  add column if not exists safety_score numeric(5,2) not null default 50,
+  add column if not exists score_updated_at timestamptz;
+
+-- Seed poverty index for existing areas (static MVP data — real data from Census API later)
+update public.areas set poverty_index = case slug
+  when 'chicago-west-loop' then 12.5
+  when 'chicago-river-north' then 8.2
+  when 'chicago-south-side' then 28.4
+  when 'nyc-manhattan' then 15.6
+  when 'nyc-brooklyn' then 19.8
+  when 'la-downtown' then 22.1
+  when 'la-hollywood' then 14.3
+  when 'london-central' then 11.0
+  when 'tokyo-shibuya' then 5.2
+  else 15.0
+end;
+```
+
+- [ ] **Step 2: Add score schemas**
+
+Add to `backend/models/schemas.py`:
+
+```python
+class NeighborhoodScore(BaseModel):
+    area_id: str
+    area_name: str
+    crime_count: int
+    crime_rate_per_km2: float
+    poverty_index: float
+    safety_score: float
+    score_updated_at: str | None
+
+class NeighborhoodScoresResponse(BaseModel):
+    scores: list[NeighborhoodScore]
+    computed_at: str
+```
+
+- [ ] **Step 3: Create neighborhood scoring service**
+
+Write `backend/services/neighborhood_scores.py`:
+
+```python
+import logging
+import math
+from datetime import datetime, timedelta
+from backend.db import get_supabase
+
+logger = logging.getLogger(__name__)
+
+
+async def compute_area_crime_stats(area_id: str, radius_km: float = 5.0) -> dict:
+    """Count crimes in an area and compute crime rate per km²."""
+    sb = get_supabase()
+
+    # Count crime-type events in this area from last 90 days
+    since = (datetime.utcnow() - timedelta(days=90)).isoformat()
+
+    result = sb.table("events") \
+        .select("id", count="exact") \
+        .eq("area_id", area_id) \
+        .eq("threat_type", "crime") \
+        .gte("occurred_at", since) \
+        .execute()
+
+    crime_count = result.count or 0
+    area_km2 = math.pi * radius_km ** 2
+    crime_rate = crime_count / area_km2 if area_km2 > 0 else 0
+
+    return {
+        "crime_count": crime_count,
+        "crime_rate_per_km2": round(crime_rate, 2),
+    }
+
+
+def compute_safety_score(
+    crime_rate_per_km2: float,
+    poverty_index: float,
+    max_crime_rate: float = 10.0,
+) -> float:
+    """
+    Composite safety score 0-100 (higher = safer).
+
+    Formula:
+    - crime_rate_pct = min(crime_rate / max_crime_rate, 1.0) * 100
+    - poverty_pct = min(poverty_index / 50, 1.0) * 100
+    - recency_weight = crime_rate_pct (crimes that happened recently weigh more)
+    - score = 100 - (crime_rate_pct * 0.6 + poverty_pct * 0.2 + recency_weight * 0.2)
+    """
+    crime_rate_pct = min(crime_rate_per_km2 / max_crime_rate, 1.0) * 100
+    poverty_pct = min(poverty_index / 50.0, 1.0) * 100
+    recency_weight = crime_rate_pct  # same signal, double-weighted intentionally
+
+    score = 100 - (crime_rate_pct * 0.6 + poverty_pct * 0.2 + recency_weight * 0.2)
+    return round(max(0, min(100, score)), 2)
+
+
+async def refresh_all_scores() -> int:
+    """Recompute safety scores for all active areas. Returns count updated."""
+    sb = get_supabase()
+
+    areas = sb.table("areas").select("id, name, radius_km, poverty_index") \
+        .eq("is_active", True).execute()
+
+    if not areas.data:
+        return 0
+
+    # Find max crime rate for normalization
+    stats = []
+    for area in areas.data:
+        s = await compute_area_crime_stats(area["id"], float(area.get("radius_km", 5)))
+        stats.append((area, s))
+
+    max_rate = max((s["crime_rate_per_km2"] for _, s in stats), default=1.0) or 1.0
+
+    updated = 0
+    now = datetime.utcnow().isoformat()
+
+    for area, s in stats:
+        score = compute_safety_score(
+            s["crime_rate_per_km2"],
+            float(area.get("poverty_index", 0)),
+            max_crime_rate=max_rate,
+        )
+
+        sb.table("areas").update({
+            "crime_count": s["crime_count"],
+            "crime_rate_per_km2": s["crime_rate_per_km2"],
+            "safety_score": score,
+            "score_updated_at": now,
+        }).eq("id", area["id"]).execute()
+
+        updated += 1
+
+    logger.info(f"Refreshed safety scores for {updated} areas")
+    return updated
+```
+
+- [ ] **Step 4: Create scores router**
+
+Write `backend/routers/scores.py`:
+
+```python
+from datetime import datetime
+from fastapi import APIRouter
+from backend.db import get_supabase
+from backend.models.schemas import NeighborhoodScore, NeighborhoodScoresResponse
+from backend.services.neighborhood_scores import refresh_all_scores
+
+router = APIRouter(prefix="/api/scores", tags=["scores"])
+
+
+@router.get("", response_model=NeighborhoodScoresResponse)
+async def get_neighborhood_scores():
+    """Get safety scores for all active areas."""
+    sb = get_supabase()
+
+    result = sb.table("areas") \
+        .select("id, name, crime_count, crime_rate_per_km2, poverty_index, safety_score, score_updated_at") \
+        .eq("is_active", True) \
+        .order("safety_score", desc=False) \
+        .execute()
+
+    scores = [
+        NeighborhoodScore(
+            area_id=row["id"],
+            area_name=row["name"],
+            crime_count=row.get("crime_count", 0),
+            crime_rate_per_km2=float(row.get("crime_rate_per_km2", 0)),
+            poverty_index=float(row.get("poverty_index", 0)),
+            safety_score=float(row.get("safety_score", 50)),
+            score_updated_at=row.get("score_updated_at"),
+        )
+        for row in (result.data or [])
+    ]
+
+    return NeighborhoodScoresResponse(
+        scores=scores,
+        computed_at=datetime.utcnow().isoformat(),
+    )
+
+
+@router.post("/refresh")
+async def refresh_scores():
+    """Recompute all neighborhood safety scores."""
+    count = await refresh_all_scores()
+    return {"updated": count}
+```
+
+- [ ] **Step 5: Register router + add periodic refresh**
+
+In `backend/main.py`, add:
+
+```python
+from backend.routers.scores import router as scores_router
+from backend.services.neighborhood_scores import refresh_all_scores
+
+app.include_router(scores_router)
+
+# Inside the scraper loop (runs every 15 min), add after scraper call:
+await refresh_all_scores()
+```
+
+- [ ] **Step 6: Test endpoint**
+
+```bash
+cd backend && uvicorn main:app --reload
+```
+
+```bash
+# Refresh scores
+curl -X POST http://localhost:8000/api/scores/refresh
+
+# Get scores
+curl http://localhost:8000/api/scores
+```
+
+Expected: JSON with `scores` array, each area having `crime_count`, `crime_rate_per_km2`, `poverty_index`, `safety_score`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend/services/neighborhood_scores.py backend/routers/scores.py backend/main.py backend/models/schemas.py
+git commit -m "feat: neighborhood crime rates + safety scores (crime count, poverty index, composite score)"
+```
+
+---
+
+## Egor / Dev 3 (Newbie) — Profile + Notifications + QA
 
 ### Task 3.1: Wire Profile Page to Real Data
 
@@ -2146,25 +2399,25 @@ gh issue create --title "Bug: [description]" --body "[steps to reproduce]"
 ## Timeline & Dependencies
 
 ```
-HOUR 0-2:   Dev 1: Task 1.1 + 1.2 (auth)
-             Dev 2: Task 2.1 (route API)
-             Dev 3: Read codebase, set up local env
+HOUR 0-2:   Olexii: Task 1.1 + 1.2 (auth)
+             Artem:  Task 2.1 (route API)
+             Egor:   Read codebase, set up local env
 
-HOUR 2-4:   Dev 1: Task 1.3 (map wiring + geolocation)
-             Dev 2: Task 2.2 + 2.3 (RPC + area detect)
-             Dev 3: Task 3.1 (profile wiring) [BLOCKED BY: Task 1.1]
+HOUR 2-4:   Olexii: Task 1.3 (map wiring + geolocation)
+             Artem:  Task 2.2 + 2.3 (RPC + area detect)
+             Egor:   Task 3.1 (profile wiring) [BLOCKED BY: Task 1.1]
 
-HOUR 4-8:   Dev 1: Task 1.4 + 1.5 (feed + heatmap)
-             Dev 2: Task 2.4 (historical ACLED import)
-             Dev 3: Task 3.2 (notification bell)
+HOUR 4-8:   Olexii: Task 1.4 + 1.5 (feed + heatmap)
+             Artem:  Task 2.4 (historical ACLED import) + Task 2.6 (neighborhood crime scores)
+             Egor:   Task 3.2 (notification bell)
 
-HOUR 8-12:  Dev 1: Task 1.6 (route UI) [NEEDS: Task 2.1]
-             Dev 2: Continue 2.4 + start 2.5 (deploy prep)
-             Dev 3: Task 3.3 (area subscription)
+HOUR 8-12:  Olexii: Task 1.6 (route UI) [NEEDS: Task 2.1]
+             Artem:  Continue 2.4/2.6 + start 2.5 (deploy prep)
+             Egor:   Task 3.3 (area subscription)
 
-HOUR 12-16: Dev 1: Integration fixes + polish
-             Dev 2: Task 2.5 (deploy)
-             Dev 3: Task 3.4 (QA)
+HOUR 12-16: Olexii: Integration fixes + polish
+             Artem:  Task 2.5 (deploy)
+             Egor:   Task 3.4 (QA)
 
 HOUR 16-18: Feature freeze. Bug fixes only. Final deploy.
 ```
