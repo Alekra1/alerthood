@@ -20,8 +20,8 @@ RETURNS TABLE (
 ) LANGUAGE sql STABLE AS $$
   SELECT
     a.id, a.name, a.slug, a.area_type,
-    a.safety_score, a.safety_color,
-    a.crime_count AS event_count_90d,
+    NULL::numeric AS safety_score, a.safety_color,
+    NULL::integer AS event_count_90d,
     p.name AS parent_name,
     extensions.st_asgeojson(
       extensions.st_simplifypreservetopology(

@@ -83,19 +83,17 @@ RETURNS TABLE (
   severity public.severity_level,
   occurred_at timestamptz,
   lat double precision,
-  lng double precision,
-  relevance_score integer
+  lng double precision
 ) LANGUAGE sql STABLE AS $$
   SELECT
     e.id, e.title, e.threat_type, e.severity, e.occurred_at,
-    extensions.st_y(e.location) AS lat,
-    extensions.st_x(e.location) AS lng,
-    e.relevance_score
+    extensions.st_y(e.approx_center) AS lat,
+    extensions.st_x(e.approx_center) AS lng
   FROM public.events e
   JOIN public.areas a ON a.id = target_area_id
-  WHERE e.status = 'active'
+  WHERE e.status NOT IN ('resolved', 'dismissed')
     AND a.boundary IS NOT NULL
-    AND extensions.st_contains(a.boundary, e.location)
+    AND extensions.st_contains(a.boundary, e.approx_center)
   ORDER BY e.occurred_at DESC
   LIMIT 500;
 $$;
