@@ -20,6 +20,7 @@ export function useScores() {
   const [scores, setScores] = useState<NeighborhoodScore[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -37,7 +38,9 @@ export function useScores() {
       })
 
     return () => { cancelled = true }
-  }, [])
+  }, [tick])
 
-  return { scores, loading, error }
+  const refetch = () => setTick((t) => t + 1)
+
+  return { scores, loading, error, refetch }
 }

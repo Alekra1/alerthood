@@ -5,7 +5,7 @@ import { apiPost } from '../../lib/api'
 interface Props {
   areaId: string
   areaName: string
-  safetyScore: number
+  safetyScore: number | null
   riskLevel: string
   crimeCount: number
   crimeRatePerKm2: number

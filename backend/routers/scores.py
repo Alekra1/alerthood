@@ -12,21 +12,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/scores", tags=["scores"])
 
 
+_PAGE = 1000  # Supabase server-side row cap per request
+
+
 @router.get("", response_model=NeighborhoodScoresResponse)
 async def get_neighborhood_scores(user_id: str = Depends(get_current_user)):
     """Get safety scores for all active areas."""
     sb = get_supabase()
 
     try:
-        result = (
-            sb.table("areas")
-            .select(
-                "id, name, crime_count, crime_rate_per_km2, poverty_index, safety_score, score_updated_at"
+        all_rows = []
+        page = 0
+        while True:
+            result = (
+                sb.table("areas")
+                .select(
+                    "id, name, crime_count, crime_rate_per_km2, poverty_index, safety_score, score_updated_at"
+                )
+                .eq("is_active", True)
+                .order("safety_score", desc=False)
+                .range(page * _PAGE, (page + 1) * _PAGE - 1)
+                .execute()
             )
-            .eq("is_active", True)
-            .order("safety_score", desc=False)
-            .execute()
-        )
+            if not result.data:
+                break
+            all_rows.extend(result.data)
+            if len(result.data) < _PAGE:
+                break
+            page += 1
     except Exception as e:
         logger.error(f"Failed to fetch neighborhood scores: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail="Safety scores temporarily unavailable")
@@ -41,7 +54,7 @@ async def get_neighborhood_scores(user_id: str = Depends(get_current_user)):
             safety_score=float(row.get("safety_score", 50)),
             score_updated_at=row.get("score_updated_at"),
         )
-        for row in (result.data or [])
+        for row in all_rows
     ]
 
     return NeighborhoodScoresResponse(

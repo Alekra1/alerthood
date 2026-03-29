@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCachedUserLocation } from '../../lib/userLocation'
+import { apiPost } from '../../lib/api'
 import { useAreaDetect } from '../../hooks/useAreas'
 import { useScores } from '../../hooks/useScores'
 import { useAlertPrefs } from '../../hooks/useAlertPrefs'
@@ -48,8 +49,9 @@ export function AreaSummaryView() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
 
   const { area, detect, loading: areaLoading, error: areaError } = useAreaDetect()
-  const { scores, loading: scoresLoading, error: scoresError } = useScores()
+  const { scores, loading: scoresLoading, error: scoresError, refetch: refetchScores } = useScores()
   const { showNearest } = useAlertPrefs()
+  const refreshTriggered = useRef(false)
 
   const [events, setEvents] = useState<Threat[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
@@ -164,8 +166,23 @@ export function AreaSummaryView() {
     ? scores.find((s) => s.area_id === area.id) ?? null
     : null
 
-  const score = areaScore?.safety_score ?? 50
-  const risk = getRiskLevel(score)
+  // Use null when the score has never been computed (no score_updated_at),
+  // so we never show the DB default of 50 as "MEDIUM RISK".
+  const score: number | null =
+    areaScore?.score_updated_at ? areaScore.safety_score : null
+  const risk = score !== null ? getRiskLevel(score) : null
+
+  // When the area is loaded but the score hasn't been computed yet,
+  // trigger a backend refresh once, then poll every 5 s until it resolves.
+  useEffect(() => {
+    if (!area || score !== null) return
+    if (!refreshTriggered.current) {
+      refreshTriggered.current = true
+      apiPost('/api/scores/refresh', {}).catch(() => {/* best-effort */})
+    }
+    const id = setInterval(refetchScores, 5000)
+    return () => clearInterval(id)
+  }, [area, score, refetchScores])
 
   // Events are already scoped to the detected area via PostGIS (events_in_area).
   // Optionally sort by proximity if showNearest is on; no cross-area filtering needed.
@@ -238,13 +255,15 @@ export function AreaSummaryView() {
           <h1 className="font-headline font-bold text-2xl uppercase tracking-tight text-on-surface leading-none">
             {(area.name as string).toUpperCase()}
           </h1>
-          <span
-            className="flex items-center gap-1.5 font-headline font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-full"
-            style={{ backgroundColor: risk.bg, color: risk.text }}
-          >
-            <span className="w-2 h-2 rounded-full block" style={{ backgroundColor: risk.text }} />
-            {risk.label}
-          </span>
+          {risk && (
+            <span
+              className="flex items-center gap-1.5 font-headline font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-full"
+              style={{ backgroundColor: risk.bg, color: risk.text }}
+            >
+              <span className="w-2 h-2 rounded-full block" style={{ backgroundColor: risk.text }} />
+              {risk.label}
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -254,7 +273,7 @@ export function AreaSummaryView() {
       )}
       {area && !scoresLoading && !scoresError && (
         <SafetyScoreGauge
-          score={Math.round(score)}
+          score={score !== null ? Math.round(score) : null}
           updatedAt={areaScore?.score_updated_at ?? null}
         />
       )}
@@ -297,8 +316,8 @@ export function AreaSummaryView() {
         </p>
       )}
 
-      {/* 5.6 AI Area Brief — shown as soon as area resolves, score is optional */}
-      {area && !eventsLoading && !scoresLoading && (
+      {/* 5.6 AI Area Brief — only once score has been computed */}
+      {area && !eventsLoading && !scoresLoading && score !== null && risk !== null && (
         <AIAreaBrief
           areaId={area.id}
           areaName={area.name as string}

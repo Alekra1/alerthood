@@ -1,5 +1,5 @@
 interface SafetyScoreGaugeProps {
-  score: number
+  score: number | null
   updatedAt: string | null
 }
 
@@ -9,9 +9,9 @@ function getRiskColor(score: number): string {
   return '#FF5545'
 }
 
-function getRiskDescription(score: number, areaName: string): string {
+function getRiskDescription(score: number): string {
   if (score >= 70) return 'Low incident activity. Generally safe.'
-  if (score >= 40) return `Elevated activity near ${areaName}. Exercise caution after dark.`
+  if (score >= 40) return 'Elevated activity near your area. Exercise caution after dark.'
   return 'High incident volume reported. Stay alert.'
 }
 
@@ -25,6 +25,29 @@ function timeAgoFromDate(dateStr: string): string {
 }
 
 export function SafetyScoreGauge({ score, updatedAt }: SafetyScoreGaugeProps) {
+  if (score === null) {
+    return (
+      <div className="bg-surface-container border-2 border-black shadow-hard rounded-xl p-6 flex flex-col items-center gap-4">
+        <div className="relative flex items-center justify-center" style={{ width: 160, height: 160 }}>
+          <div
+            className="absolute inset-0 rounded-full animate-pulse"
+            style={{ background: 'conic-gradient(#3A3A3A 0deg 360deg)' }}
+          />
+          <div className="absolute rounded-full bg-surface-container" style={{ inset: 12 }} />
+          <div className="relative flex flex-col items-center">
+            <span className="font-headline font-black text-4xl leading-none text-on-surface-variant opacity-40">—</span>
+          </div>
+        </div>
+        <p className="font-body text-xs text-on-surface-variant uppercase tracking-widest font-bold">
+          Calculating safety score…
+        </p>
+        <p className="font-body text-sm text-on-surface-variant text-center opacity-60">
+          Score will update shortly.
+        </p>
+      </div>
+    )
+  }
+
   const riskColor = getRiskColor(score)
   const deg = Math.round((score / 100) * 360)
 
@@ -60,7 +83,7 @@ export function SafetyScoreGauge({ score, updatedAt }: SafetyScoreGaugeProps) {
 
       {/* Description */}
       <p className="font-body text-sm text-on-surface text-center">
-        {getRiskDescription(score, 'your area')}
+        {getRiskDescription(score)}
       </p>
     </div>
   )

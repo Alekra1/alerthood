@@ -110,6 +110,14 @@ def _scraper_task_done(task: asyncio.Task):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Eagerly compute scores so the UI never shows the DB default (50)
+    # before the first full scraper cycle completes.
+    try:
+        updated = await refresh_all_scores()
+        logger.info("Startup score refresh: %d areas updated", updated)
+    except Exception:
+        logger.exception("Startup score refresh failed — will retry in scraper loop")
+
     task = asyncio.create_task(scraper_loop())
     task.add_done_callback(_scraper_task_done)
     yield

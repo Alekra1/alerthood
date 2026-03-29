@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 
 from postgrest.exceptions import APIError
@@ -71,31 +72,52 @@ def _fetch_all_scores_sync() -> int:
     """
     sb = get_supabase()
 
-    # 1. Fetch poverty_index per area
-    areas_resp = (
-        sb.table("areas")
-        .select("id, poverty_index")
-        .eq("is_active", True)
-        .execute()
+    _PAGE = 1000  # Supabase server-side row cap per request
+
+    def _fetch_all_pages(query_fn):
+        """Paginate through all rows, respecting the server's 1000-row cap."""
+        rows = []
+        page = 0
+        while True:
+            resp = query_fn(page * _PAGE, (page + 1) * _PAGE - 1)
+            if not resp.data:
+                break
+            rows.extend(resp.data)
+            if len(resp.data) < _PAGE:
+                break
+            page += 1
+        return rows
+
+    # 1. Fetch poverty_index for ALL active areas (paginated)
+    all_areas = _fetch_all_pages(
+        lambda lo, hi: sb.table("areas")
+            .select("id, poverty_index")
+            .eq("is_active", True)
+            .range(lo, hi)
+            .execute()
     )
-    if not areas_resp.data:
+    if not all_areas:
         return 0
 
     poverty_by_id = {
         a["id"]: float(a.get("poverty_index") or 0)
-        for a in areas_resp.data
+        for a in all_areas
     }
 
-    # 2a. Try the fast batch RPC
+    # 2a. Try the fast batch RPC (paginated)
     try:
-        stats_resp = sb.rpc("area_crime_stats_batch", {"since_days": 90}).execute()
-        if not stats_resp.data:
+        all_stats = _fetch_all_pages(
+            lambda lo, hi: sb.rpc("area_crime_stats_batch", {"since_days": 90})
+                .range(lo, hi)
+                .execute()
+        )
+        if not all_stats:
             logger.warning("area_crime_stats_batch returned no data")
             return 0
         rates = [
             (row["area_id"], int(row["crime_count"] or 0),
              int(row["crime_count"] or 0) / float(row["area_km2"] or 1.0))
-            for row in stats_resp.data
+            for row in all_stats
         ]
     except APIError as e:
         if e.code == "PGRST202":
@@ -104,15 +126,21 @@ def _fetch_all_scores_sync() -> int:
                 "area_crime_stats_batch RPC not found; run migration "
                 "20260329_area_crime_stats_batch.sql. Falling back to per-area queries."
             )
-            rates = _fetch_per_area_sync(sb, areas_resp.data, poverty_by_id)
+            rates = _fetch_per_area_sync(sb, all_areas, poverty_by_id)
         else:
             raise
 
     max_rate = max((r for _, _, r in rates), default=1.0) or 1.0
     now = datetime.now(timezone.utc).isoformat()
 
+    # Only update areas we know exist in the DB (avoid INSERT attempts that
+    # would violate NOT NULL constraints on other columns like `name`).
+    known_ids = set(poverty_by_id.keys())
+
     rows = []
     for area_id, crime_count, crime_rate in rates:
+        if area_id not in known_ids:
+            continue
         score = compute_safety_score(
             crime_rate,
             poverty_by_id.get(area_id, 0.0),
@@ -127,15 +155,32 @@ def _fetch_all_scores_sync() -> int:
             "score_updated_at": now,
         })
 
-    updated = 0
-    for row in rows:
+    if not rows:
+        logger.warning("No valid areas to update after filtering")
+        return 0
+
+    # Use UPDATE (not upsert) so we never INSERT rows — that would violate
+    # NOT NULL constraints on columns we don't own (e.g. `name`).
+    # Run concurrently to keep total time reasonable for large area counts.
+    _WORKERS = 20
+
+    def _do_update(row: dict) -> bool:
+        _sb = get_supabase()
         area_id = row["id"]
         payload = {k: v for k, v in row.items() if k != "id"}
         try:
-            sb.table("areas").update(payload).eq("id", area_id).execute()
-            updated += 1
-        except Exception as e:
-            logger.error("Failed to update safety score for area %s: %s", area_id, e)
+            _sb.table("areas").update(payload).eq("id", area_id).execute()
+            return True
+        except Exception as exc:
+            logger.debug("Score update failed for area %s: %s", area_id, exc)
+            return False
+
+    updated = 0
+    with ThreadPoolExecutor(max_workers=_WORKERS) as pool:
+        futures = {pool.submit(_do_update, row): row["id"] for row in rows}
+        for future in as_completed(futures):
+            if future.result():
+                updated += 1
 
     logger.info("Refreshed safety scores for %d areas", updated)
     return updated
