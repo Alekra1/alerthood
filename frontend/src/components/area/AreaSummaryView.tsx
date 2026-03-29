@@ -70,12 +70,15 @@ export function AreaSummaryView() {
     )
   }, [])
 
+  // Re-fetch events scoped to the detected area via PostGIS boundary containment.
+  // Falls back to empty while area is loading — avoids showing cross-city events.
   useEffect(() => {
+    if (!area?.id) return
     let cancelled = false
     setEventsLoading(true)
 
     supabase
-      .rpc('events_with_coords', { max_rows: 20 })
+      .rpc('events_in_area', { target_area_id: area.id, max_rows: 50 })
       .then(({ data }) => {
         if (cancelled || !data) return
         const now = Date.now()
@@ -107,7 +110,7 @@ export function AreaSummaryView() {
       })
 
     return () => { cancelled = true }
-  }, [])
+  }, [area?.id])
 
   // Detect area once we have coords
   useEffect(() => {
@@ -124,24 +127,23 @@ export function AreaSummaryView() {
   const score = areaScore?.safety_score ?? 50
   const risk = getRiskLevel(score)
 
-  // Filter events by location preference
-  const localEvents = coords
-    ? showNearest
-      ? [...events]
-          .filter((e) => e.lat && e.lng)
-          .sort((a, b) =>
-            haversineKm(coords.lat, coords.lng, a.lat, a.lng) -
-            haversineKm(coords.lat, coords.lng, b.lat, b.lng),
-          )
-      : events.filter((e) => e.lat && e.lng && haversineKm(coords.lat, coords.lng, e.lat, e.lng) <= 50)
-    : []
+  // Events are already scoped to the detected area via PostGIS (events_in_area).
+  // Optionally sort by proximity if showNearest is on; no cross-area filtering needed.
+  const localEvents = coords && showNearest
+    ? [...events]
+        .filter((e) => e.lat && e.lng)
+        .sort((a, b) =>
+          haversineKm(coords.lat, coords.lng, a.lat, a.lng) -
+          haversineKm(coords.lat, coords.lng, b.lat, b.lng),
+        )
+    : events
 
-  // Active alert: high/critical from last 24h, local only
+  // Active alert: high/critical from last 24h within the area
   const activeAlert = localEvents.find(
     (e) => (e.severity === 'HIGH' || e.severity === 'CRITICAL') && e.minutesAgo <= 1440,
   ) ?? null
 
-  // Recent incidents: last 48h, up to 5, local only
+  // Recent incidents: last 48h, up to 5, within the area
   const recentEvents = localEvents
     .filter((e) => e.minutesAgo <= 2880)
     .slice(0, 5)
