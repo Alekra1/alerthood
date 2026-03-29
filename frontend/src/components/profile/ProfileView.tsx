@@ -8,12 +8,14 @@ import { MetricsBento } from './MetricsBento'
 import { BadgeGrid } from './BadgeGrid'
 import { MonitoredAreaCard } from './MonitoredAreaCard'
 import { AreaPickerMap } from './AreaPickerMap'
+import { useAlertPrefs } from '../../hooks/useAlertPrefs'
 
 export function ProfileView() {
   const { user, profile, loading, signOut } = useAuth()
   const navigate = useNavigate()
   const [areas, setAreas] = useState<MonitoredArea[]>([])
   const [showPicker, setShowPicker] = useState(false)
+  const { showNearest, setShowNearest } = useAlertPrefs()
 
   async function loadAreas() {
     if (!user) return
@@ -149,6 +151,33 @@ export function ProfileView() {
               onDelete={(id) => setAreas((prev) => prev.filter((a) => a.id !== id))}
             />
           ))}
+        </section>
+
+        <section className="space-y-3">
+          <h3 className="font-headline text-xl font-bold uppercase tracking-tight flex items-center gap-2">
+            <span className="w-6 h-1 bg-secondary inline-block" />
+            PREFERENCES
+          </h3>
+          <div className="flex items-center justify-between px-4 py-3 border-2 border-black bg-surface-container shadow-hard-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-headline font-bold text-sm uppercase tracking-wide">Show nearest alerts</span>
+              <span className="font-body text-xs text-on-surface-variant">
+                Display closest events even if outside your city
+              </span>
+            </div>
+            <button
+              role="switch"
+              aria-checked={showNearest}
+              onClick={() => setShowNearest(!showNearest)}
+              className="flex items-center w-12 h-6 rounded-full border-2 border-black transition-colors p-0.5"
+              style={{
+                backgroundColor: showNearest ? '#ffb4aa' : '#2a2a2a',
+                justifyContent: showNearest ? 'flex-end' : 'flex-start',
+              }}
+            >
+              <span className="w-4 h-4 rounded-full bg-black shrink-0" />
+            </button>
+          </div>
         </section>
 
         <section className="pb-12">

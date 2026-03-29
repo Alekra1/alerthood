@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAreaDetect } from '../../hooks/useAreas'
 import { useScores } from '../../hooks/useScores'
+import { useAlertPrefs } from '../../hooks/useAlertPrefs'
 import { supabase } from '../../lib/supabase'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { SafetyScoreGauge } from './SafetyScoreGauge'
@@ -8,6 +9,16 @@ import { ActiveAlertCard } from './ActiveAlertCard'
 import { MiniHeatmap } from './MiniHeatmap'
 import { RecentIncidentsList } from './RecentIncidentsList'
 import { AIBriefPlaceholder } from './AIBriefPlaceholder'
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
   crime: 'CRIME',
@@ -37,6 +48,7 @@ export function AreaSummaryView() {
 
   const { area, detect, loading: areaLoading } = useAreaDetect()
   const { scores, loading: scoresLoading } = useScores()
+  const { showNearest } = useAlertPrefs()
 
   const [events, setEvents] = useState<Threat[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
@@ -112,13 +124,25 @@ export function AreaSummaryView() {
   const score = areaScore?.safety_score ?? 50
   const risk = getRiskLevel(score)
 
-  // Active alert: high/critical from last 24h
-  const activeAlert = events.find(
+  // Filter events by location preference
+  const localEvents = coords
+    ? showNearest
+      ? [...events]
+          .filter((e) => e.lat && e.lng)
+          .sort((a, b) =>
+            haversineKm(coords.lat, coords.lng, a.lat, a.lng) -
+            haversineKm(coords.lat, coords.lng, b.lat, b.lng),
+          )
+      : events.filter((e) => e.lat && e.lng && haversineKm(coords.lat, coords.lng, e.lat, e.lng) <= 50)
+    : []
+
+  // Active alert: high/critical from last 24h, local only
+  const activeAlert = localEvents.find(
     (e) => (e.severity === 'HIGH' || e.severity === 'CRITICAL') && e.minutesAgo <= 1440,
   ) ?? null
 
-  // Recent incidents: last 48h, up to 5
-  const recentEvents = events
+  // Recent incidents: last 48h, up to 5, local only
+  const recentEvents = localEvents
     .filter((e) => e.minutesAgo <= 2880)
     .slice(0, 5)
 
@@ -212,7 +236,16 @@ export function AreaSummaryView() {
       )}
 
       {/* 5.3 Active Alert (conditional) */}
-      {activeAlert && <ActiveAlertCard event={activeAlert} />}
+      {!eventsLoading && area && (
+        activeAlert
+          ? <ActiveAlertCard event={activeAlert} />
+          : (
+            <div className="flex items-center gap-3 px-4 py-3 rounded border border-on-surface/10 bg-on-surface/5">
+              <span className="material-symbols-outlined text-xl text-on-surface-variant opacity-50">check_circle</span>
+              <p className="font-body text-sm text-on-surface-variant">No active alerts in your area.</p>
+            </div>
+          )
+      )}
 
       {/* 5.4 Mini Heatmap */}
       {!eventsLoading && recentEvents.length > 0 && (
