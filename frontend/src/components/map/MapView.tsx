@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
+import { useMapEvents } from 'react-leaflet'
 import { supabase } from '../../lib/supabase'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { useHeatmap } from '../../hooks/useHeatmap'
-import { MonitoredZone } from './MonitoredZone'
+import { useNeighborhoods } from '../../hooks/useNeighborhoods'
+import type { NeighborhoodFeature } from '../../hooks/useNeighborhoods'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
 import { MOCK_PROFILE } from '../../data/mock'
@@ -44,6 +46,77 @@ function FlyTo({ position }: { position: [number, number] }) {
     map.flyTo(position, Math.max(map.getZoom(), 15), { duration: 1.5 })
   }, [position, map])
   return null
+}
+
+function NeighborhoodLayer() {
+  const [bounds, setBounds] = useState<{
+    minLat: number; minLng: number; maxLat: number; maxLng: number
+  } | null>(null)
+  const [zoom, setZoom] = useState(MAP_ZOOM)
+
+  const map = useMapEvents({
+    moveend: () => {
+      const b = map.getBounds()
+      setBounds({
+        minLat: b.getSouth(),
+        minLng: b.getWest(),
+        maxLat: b.getNorth(),
+        maxLng: b.getEast(),
+      })
+      setZoom(map.getZoom())
+    },
+    zoomend: () => {
+      const b = map.getBounds()
+      setBounds({
+        minLat: b.getSouth(),
+        minLng: b.getWest(),
+        maxLat: b.getNorth(),
+        maxLng: b.getEast(),
+      })
+      setZoom(map.getZoom())
+    },
+  })
+
+  // Trigger initial load
+  useEffect(() => {
+    const b = map.getBounds()
+    setBounds({
+      minLat: b.getSouth(),
+      minLng: b.getWest(),
+      maxLat: b.getNorth(),
+      maxLng: b.getEast(),
+    })
+    setZoom(map.getZoom())
+  }, [map])
+
+  const { geojson } = useNeighborhoods(bounds, zoom)
+
+  if (!geojson || geojson.features.length === 0) return null
+
+  return (
+    <GeoJSONLayer
+      key={JSON.stringify(geojson.features.map(f => f.properties.id))}
+      data={geojson as any}
+      style={(feature) => {
+        const props = (feature as any)?.properties as NeighborhoodFeature['properties'] | undefined
+        const color = props?.safety_color ?? '#22c55e'
+        return {
+          color,
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.1,
+          opacity: 0.8,
+        }
+      }}
+      onEachFeature={(feature, layer) => {
+        const props = feature.properties as NeighborhoodFeature['properties']
+        layer.bindTooltip(
+          `<strong>${props.name}</strong><br/>Safety: ${Math.round(props.safety_score)}%`,
+          { sticky: true, className: '!bg-black/80 !text-white !border-black !text-xs !font-mono !rounded-none' }
+        )
+      }}
+    />
+  )
 }
 
 export function MapView() {
@@ -107,6 +180,8 @@ export function MapView() {
         >
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
 
+          <NeighborhoodLayer />
+
           {flyTo && <FlyTo position={flyTo} />}
           {!flyTo && userPos && <FlyTo position={userPos} />}
 
@@ -124,8 +199,6 @@ export function MapView() {
               />
             </>
           )}
-
-          {homeArea && <MonitoredZone area={homeArea} />}
 
           {threats.map((threat) => (
             <ThreatMarker
