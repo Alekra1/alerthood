@@ -12,7 +12,6 @@ Stage 2 — Structured extraction + English translation:
 
 import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
