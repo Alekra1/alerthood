@@ -17,6 +17,7 @@ from services.emsc_scraper import run_emsc_scraper
 from services.gdacs_scraper import run_gdacs_scraper
 from services.neighborhood_scores import refresh_all_scores
 from services.notify import dispatch_recent_notifications
+from services.boundary_ingestion import ingest_all_cities
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,6 +26,26 @@ logger = logging.getLogger(__name__)
 async def scraper_loop():
     settings = get_settings()
     interval = settings.scraper_interval_minutes * 60
+
+    # One-time: ingest neighborhood boundaries if none exist yet
+    try:
+        from db import get_supabase
+        sb = get_supabase()
+        boundary_check = (
+            sb.table("areas")
+            .select("id", count="exact")
+            .eq("area_type", "neighborhood")
+            .not_.is_("boundary", "null")
+            .limit(1)
+            .execute()
+        )
+        if not boundary_check.count:
+            logger.info("No neighborhood boundaries found — running initial ingestion...")
+            results = await ingest_all_cities()
+            logger.info("Boundary ingestion complete: %s", results)
+    except Exception:
+        logger.exception("Boundary ingestion failed — will retry next startup")
+
     while True:
         try:
             logger.info("Running all scrapers...")
