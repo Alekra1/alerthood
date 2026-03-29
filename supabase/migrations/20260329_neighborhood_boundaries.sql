@@ -25,10 +25,17 @@ CREATE INDEX IF NOT EXISTS areas_boundary_gix
 CREATE INDEX IF NOT EXISTS areas_parent_id_idx
   ON public.areas (parent_id) WHERE parent_id IS NOT NULL;
 
--- Backfill existing areas: convert center+radius to circle polygon
--- This keeps ST_Contains queries working during transition
-UPDATE public.areas
-SET boundary = extensions.st_multi(
-  extensions.st_buffer(center::extensions.geography, radius_km * 1000)::extensions.geometry
-)
-WHERE boundary IS NULL AND center IS NOT NULL;
+-- Backfill existing areas: convert center+radius to circle polygon (only if radius_km column exists)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'areas' AND column_name = 'radius_km'
+  ) THEN
+    UPDATE public.areas
+    SET boundary = extensions.st_multi(
+      extensions.st_buffer(center::extensions.geography, radius_km * 1000)::extensions.geometry
+    )
+    WHERE boundary IS NULL AND center IS NOT NULL;
+  END IF;
+END $$;

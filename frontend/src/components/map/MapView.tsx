@@ -96,6 +96,15 @@ function NeighborhoodLayer() {
     },
   })
 
+  // Create a custom pane below the default overlayPane so markers stay on top
+  useEffect(() => {
+    if (!map.getPane('neighborhoodPane')) {
+      const pane = map.createPane('neighborhoodPane')
+      pane.style.zIndex = '200'
+      pane.style.pointerEvents = 'none'
+    }
+  }, [map])
+
   // Trigger initial load
   useEffect(() => {
     const b = map.getBounds()
@@ -135,6 +144,8 @@ function NeighborhoodLayer() {
           fillColor: color,
           fillOpacity: 0.1,
           opacity: 0.8,
+          interactive: false,
+          pane: 'neighborhoodPane',
         }
       }}
       onEachFeature={(feature, layer) => {
