@@ -1,7 +1,6 @@
 """Ingest neighborhood boundaries from OSM into the areas table."""
 
 import asyncio
-import json
 import logging
 
 from db import get_supabase
