@@ -103,7 +103,7 @@
 
 **Profile & Subscriptions**
 - [ ] Area subscription flow — select/add monitored areas
-- [ ] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
+- [x] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
 
 **Integration**
 - [x] "VIEW MAP" on feed cards → navigate to Map centered on that event
