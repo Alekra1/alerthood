@@ -46,6 +46,17 @@
 
 ## 🔲 TODO
 
+### In Progress — `add-event`
+
+- [x] Wire the map floating `+` button to an event creation prompt/modal
+- [x] Collect title, description, threat type, and severity
+- [x] Use the user's current location for the submitted event coordinates
+- [x] Submit the event through `POST /api/events` and refresh map markers on success
+- [x] Verify the frontend build passes
+
+Review: Added a map-level event reporting modal that uses the reporter's current geolocation, attempts nearest-area detection before submit, posts to `POST /api/events`, and refreshes markers immediately after a successful report.
+Review update: Adjusted the modal to fill the mobile viewport, keep safe-area spacing, and scroll internally so the form and action buttons stay usable on smaller screens.
+
 ### Dev 1 (Olexii) — Frontend Lead
 
 **Auth & Account (HIGH PRIORITY — next up)**

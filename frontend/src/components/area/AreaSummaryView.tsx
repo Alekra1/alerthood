@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getCachedUserLocation } from '../../lib/userLocation'
 import { useAreaDetect } from '../../hooks/useAreas'
 import { useScores } from '../../hooks/useScores'
 import { supabase } from '../../lib/supabase'
@@ -29,20 +30,20 @@ function getRiskLevel(score: number): { label: string; bg: string; text: string 
   return { label: 'HIGH RISK', bg: '#FF5545', text: '#5C0002' }
 }
 
-type GeoState = 'idle' | 'requesting' | 'granted' | 'denied'
+type GeoState = 'requesting' | 'granted' | 'denied' | 'unavailable'
 
 export function AreaSummaryView() {
-  const [geoState, setGeoState] = useState<GeoState>('idle')
+  const [geoState, setGeoState] = useState<GeoState>('requesting')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
 
-  const { area, detect, loading: areaLoading } = useAreaDetect()
-  const { scores, loading: scoresLoading } = useScores()
+  const { area, detect, loading: areaLoading, error: areaError } = useAreaDetect()
+  const { scores, loading: scoresLoading, error: scoresError } = useScores()
 
   const [events, setEvents] = useState<Threat[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
+  const [eventsError, setEventsError] = useState<string | null>(null)
 
-  // Start geolocation + events loading in parallel on mount
-  useEffect(() => {
+  const requestGeo = useCallback(() => {
     if (!navigator.geolocation) {
       setGeoState('denied')
       return
@@ -53,9 +54,41 @@ export function AreaSummaryView() {
         setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         setGeoState('granted')
       },
-      () => setGeoState('denied'),
+      (err) => {
+        // PERMISSION_DENIED = 1, POSITION_UNAVAILABLE = 2, TIMEOUT = 3
+        setGeoState(err.code === 1 ? 'denied' : 'unavailable')
+      },
       { timeout: 10000 },
     )
+  }, [])
+
+  // Mount: use cached location from map view if available, otherwise request fresh
+  useEffect(() => {
+    const cached = getCachedUserLocation()
+    if (cached) {
+      setCoords(cached)
+      setGeoState('granted')
+      return
+    }
+
+    let cancelled = false
+    if (!navigator.geolocation) {
+      setGeoState('denied')
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        if (cancelled) return
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setGeoState('granted')
+      },
+      (err) => {
+        if (cancelled) return
+        setGeoState(err.code === 1 ? 'denied' : 'unavailable')
+      },
+      { timeout: 10000 },
+    )
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -64,8 +97,10 @@ export function AreaSummaryView() {
 
     supabase
       .rpc('events_with_coords', { max_rows: 20 })
-      .then(({ data }) => {
-        if (cancelled || !data) return
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) { setEventsError(error.message); return }
+        if (!data) return
         const now = Date.now()
         const mapped: Threat[] = data.map((e: Record<string, unknown>) => {
           const minutesAgo = Math.max(
@@ -90,6 +125,9 @@ export function AreaSummaryView() {
         })
         setEvents(mapped)
       })
+      .catch((err: Error) => {
+        if (!cancelled) setEventsError(err.message)
+      })
       .finally(() => {
         if (!cancelled) setEventsLoading(false)
       })
@@ -97,13 +135,15 @@ export function AreaSummaryView() {
     return () => { cancelled = true }
   }, [])
 
+  const detectInitiated = useRef(false)
+
   // Detect area once we have coords
   useEffect(() => {
-    if (coords) detect(coords.lat, coords.lng)
+    if (coords) {
+      detectInitiated.current = true
+      detect(coords.lat, coords.lng)
+    }
   }, [coords, detect])
-
-  // Only block on geolocation — events and scores load in parallel
-  const isBlocked = geoState === 'requesting'
 
   const areaScore = area
     ? scores.find((s) => s.area_id === area.id) ?? null
@@ -126,67 +166,52 @@ export function AreaSummaryView() {
     ? [coords.lat, coords.lng]
     : [51.505, -0.09]
 
-  // ─── Location denied state ────────────────────────────────────────────────
-  if (geoState === 'denied') {
-    return (
-      <div className="px-4 max-w-2xl mx-auto mt-16 flex flex-col items-center gap-4 text-center">
-        <span className="material-symbols-outlined text-5xl text-on-surface-variant opacity-40">
-          location_off
-        </span>
-        <p className="font-headline font-bold text-xl uppercase tracking-tight text-on-surface">
-          Location Required
-        </p>
-        <p className="font-body text-sm text-on-surface-variant">
-          Enable location access to see your neighbourhood summary.
-        </p>
-      </div>
-    )
-  }
+  const geoFailed = geoState === 'denied' || geoState === 'unavailable'
+  const areaResolved = !areaLoading && detectInitiated.current && geoState === 'granted'
 
-  // ─── Loading state ────────────────────────────────────────────────────────
-  if (isBlocked) {
-    return (
-      <div className="px-4 max-w-2xl mx-auto mt-24 flex flex-col items-center gap-3">
-        <span className="material-symbols-outlined text-4xl text-on-surface-variant opacity-50 animate-pulse">
-          radar
-        </span>
-        <p className="font-headline font-bold text-sm uppercase tracking-widest text-on-surface-variant opacity-60">
-          {geoState === 'requesting' ? 'Getting your location…' : 'Loading area data…'}
-        </p>
-      </div>
-    )
-  }
-
-  // ─── No area found (geolocation resolved but area detection failed) ────
-  if (!area && !areaLoading) {
-    return (
-      <div className="px-4 max-w-2xl mx-auto mt-24 flex flex-col items-center gap-3 text-center">
-        <span className="material-symbols-outlined text-5xl text-on-surface-variant opacity-40">
-          location_searching
-        </span>
-        <p className="font-headline font-bold text-xl uppercase tracking-tight text-on-surface">
-          No area found
-        </p>
-        <p className="font-body text-sm text-on-surface-variant">
-          We couldn't find a monitored area near your location.
-        </p>
-      </div>
-    )
-  }
-
-  const areaName = area ? (area.name as string).toUpperCase() : null
-
-  // ─── Main content (progressive — shows events before area resolves) ───────
   return (
     <div className="px-4 max-w-2xl mx-auto space-y-6 pb-4">
       {/* 5.1 Area Header */}
-      {areaName ? (
+      {geoState === 'requesting' || areaLoading || (geoState === 'granted' && !detectInitiated.current) ? (
+        <div className="pt-2">
+          <div className="h-8 w-48 bg-on-surface/5 animate-pulse" />
+        </div>
+      ) : geoState === 'denied' ? (
+        <div className="pt-2 flex items-center gap-2 text-on-surface-variant opacity-60">
+          <span className="material-symbols-outlined text-base">location_off</span>
+          <p className="font-body text-sm">Enable location access to detect your area.</p>
+        </div>
+      ) : geoState === 'unavailable' ? (
+        <div className="pt-2 flex items-center gap-3">
+          <span className="material-symbols-outlined text-base text-on-surface-variant opacity-60">
+            location_searching
+          </span>
+          <p className="font-body text-sm text-on-surface-variant opacity-60">
+            Couldn't get your location.
+          </p>
+          <button
+            onClick={requestGeo}
+            className="font-headline font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-full bg-on-surface/10 text-on-surface"
+          >
+            Retry
+          </button>
+        </div>
+      ) : areaError ? (
+        <div className="pt-2 flex items-center gap-2 text-on-surface-variant opacity-60">
+          <span className="material-symbols-outlined text-base">wifi_off</span>
+          <p className="font-body text-sm">Couldn't load area — check your connection.</p>
+        </div>
+      ) : areaResolved && !area ? (
+        <div className="pt-2">
+          <p className="font-body text-sm text-on-surface-variant opacity-60">
+            No monitored area found near your location.
+          </p>
+        </div>
+      ) : area ? (
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <div>
-            <h1 className="font-headline font-bold text-2xl uppercase tracking-tight text-on-surface leading-none">
-              {areaName}
-            </h1>
-          </div>
+          <h1 className="font-headline font-bold text-2xl uppercase tracking-tight text-on-surface leading-none">
+            {(area.name as string).toUpperCase()}
+          </h1>
           <span
             className="flex items-center gap-1.5 font-headline font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-full"
             style={{ backgroundColor: risk.bg, color: risk.text }}
@@ -195,19 +220,24 @@ export function AreaSummaryView() {
             {risk.label}
           </span>
         </div>
-      ) : (
-        <div className="pt-2">
-          <div className="h-8 w-48 bg-on-surface/5 animate-pulse" />
-        </div>
-      )}
+      ) : null}
 
       {/* 5.2 Safety Score Hero */}
-      {area ? (
+      {area && scoresLoading && (
+        <div className="h-40 bg-on-surface/5 animate-pulse rounded" />
+      )}
+      {area && !scoresLoading && !scoresError && (
         <SafetyScoreGauge
           score={Math.round(score)}
           updatedAt={areaScore?.score_updated_at ?? null}
         />
-      ) : (
+      )}
+      {area && !scoresLoading && scoresError && (
+        <p className="font-body text-xs text-on-surface-variant opacity-50 text-center py-2">
+          Couldn't load safety score — check your connection.
+        </p>
+      )}
+      {!area && !areaResolved && !geoFailed && (
         <div className="h-40 bg-on-surface/5 animate-pulse rounded" />
       )}
 
@@ -225,6 +255,11 @@ export function AreaSummaryView() {
       )}
       {eventsLoading && (
         <div className="h-32 bg-on-surface/5 animate-pulse rounded" />
+      )}
+      {!eventsLoading && eventsError && (
+        <p className="font-body text-xs text-on-surface-variant opacity-50 text-center py-2">
+          Couldn't load recent incidents — check your connection.
+        </p>
       )}
 
       {/* 5.6 AI Brief Placeholder */}

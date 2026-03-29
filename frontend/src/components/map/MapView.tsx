@@ -2,13 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
+import { apiGet } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
+import { getCachedUserLocation, setCachedUserLocation } from '../../lib/userLocation'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { useHeatmap } from '../../hooks/useHeatmap'
 import { useNeighborhoods } from '../../hooks/useNeighborhoods'
 import type { NeighborhoodFeature } from '../../hooks/useNeighborhoods'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
+import { AddEventModal } from './AddEventModal'
+import type { AddEventFormValues } from './AddEventModal'
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
   crime: 'CRIME',
@@ -22,6 +26,26 @@ const SEVERITY_PCT: Record<string, number> = {
   medium: 50,
   high: 75,
   critical: 95,
+}
+
+interface EventRow {
+  id: string
+  title: string
+  threat_type: string
+  severity: string
+  occurred_at: string
+  lat: number
+  lng: number
+  location_label: string | null
+  source_type: string | null
+  source_url: string | null
+}
+
+interface AreaDetectResponse {
+  area: {
+    id: string
+    name?: string | null
+  } | null
 }
 
 const MAP_CENTER: [number, number] = [41.882, -87.631]
@@ -53,6 +77,38 @@ function weightToColor(weight: number): string {
   if (weight >= 0.5) return '#f97316'
   if (weight >= 0.25) return '#eab308'
   return '#22c55e'
+}
+
+function mapEventRowToThreat(event: EventRow): Threat {
+  return {
+    id: event.id,
+    title: event.title,
+    category: THREAT_TYPE_MAP[event.threat_type] ?? 'CRIME',
+    severity: event.severity.toUpperCase() as ThreatSeverity,
+    severityPct: SEVERITY_PCT[event.severity] ?? 50,
+    location: event.location_label ?? '',
+    lat: event.lat,
+    lng: event.lng,
+    minutesAgo: Math.max(0, Math.floor((Date.now() - new Date(event.occurred_at).getTime()) / 60000)),
+    upvotes: 0,
+    downvotes: 0,
+    source: event.source_type ?? '',
+    sourceUrl: event.source_url ?? null,
+  }
+}
+
+function requestCurrentPosition(): Promise<[number, number]> {
+  if (!navigator.geolocation) {
+    return Promise.reject(new Error('Geolocation is not available on this device.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve([pos.coords.latitude, pos.coords.longitude]),
+      () => reject(new Error('We need your current location before you can report an event.')),
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  })
 }
 
 // Flies to a position inside the Leaflet context
@@ -149,6 +205,7 @@ function NeighborhoodLayer() {
 export function MapView() {
   const { state: navState } = useLocation()
   const fromFeed = !!(navState?.lat && navState?.lng)
+  const cachedUserLocation = getCachedUserLocation()
 
   // On the very first visit (no saved position, not coming from feed), we wait
   // for geolocation before rendering the map so it opens instantly at the user's
@@ -158,7 +215,9 @@ export function MapView() {
   const [initialCenter, setInitialCenter] = useState<[number, number] | null>(
     isFirstVisit ? null : (savedCenter ?? MAP_CENTER)
   )
-  const [userPos, setUserPos] = useState<[number, number] | null>(null)
+  const [userPos, setUserPos] = useState<[number, number] | null>(
+    cachedUserLocation ? [cachedUserLocation.lat, cachedUserLocation.lng] : null
+  )
   // flyTo is only used for feed→marker navigation and the locate button
   const [flyTo, setFlyTo] = useState<[number, number] | null>(
     fromFeed ? [navState.lat, navState.lng] : null
@@ -166,36 +225,34 @@ export function MapView() {
 
   const [threats, setThreats] = useState<Threat[]>([])
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null)
+  const [isAddEventOpen, setIsAddEventOpen] = useState(false)
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false)
+  const [addEventError, setAddEventError] = useState<string | null>(null)
   const { cells, loading } = useHeatmap(null)
 
+  async function loadThreats(): Promise<Threat[]> {
+    const { data, error } = await supabase.rpc('events_with_coords', { max_rows: 100 })
+    if (error || !data) {
+      if (error) {
+        console.error('Failed to load map events:', error)
+      }
+      return []
+    }
+
+    const mapped = (data as EventRow[]).map(mapEventRowToThreat)
+    setThreats(mapped)
+    return mapped
+  }
+
   useEffect(() => {
-    supabase.rpc('events_with_coords', { max_rows: 100 }).then(({ data, error }) => {
-      if (error || !data) return
-      setThreats(
-        (data as any[]).map((e) => ({
-          id: e.id,
-          title: e.title,
-          category: THREAT_TYPE_MAP[e.threat_type] ?? 'CRIME',
-          severity: (e.severity as string).toUpperCase() as ThreatSeverity,
-          severityPct: SEVERITY_PCT[e.severity as string] ?? 50,
-          location: e.location_label ?? '',
-          lat: e.lat,
-          lng: e.lng,
-          minutesAgo: Math.max(0, Math.floor((Date.now() - new Date(e.occurred_at).getTime()) / 60000)),
-          upvotes: 0,
-          downvotes: 0,
-          source: e.source_type ?? '',
-          sourceUrl: e.source_url ?? null,
-        } as Threat))
-      )
-    })
+    void loadThreats()
   }, [])
 
   useEffect(() => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
+    requestCurrentPosition()
+      .then((coords) => {
         setUserPos(coords)
+        setCachedUserLocation(coords[0], coords[1])
         if (isFirstVisit) {
           // Open the map directly at user position — no fly animation
           setInitialCenter(coords)
@@ -203,29 +260,121 @@ export function MapView() {
           savedZoom = MAP_ZOOM
           hasFlownToUser = true
         }
-      },
-      () => {
+      })
+      .catch(() => {
         // Geolocation denied / unavailable on first visit — fall back to default
         if (isFirstVisit) {
           setInitialCenter(MAP_CENTER)
           savedCenter = MAP_CENTER
           savedZoom = MAP_ZOOM
         }
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
+      })
   }, [])
 
-  function centreOnUser() {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
-        setUserPos(coords)
-        setFlyTo([...coords])
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
+  async function centreOnUser() {
+    try {
+      const coords = await requestCurrentPosition()
+      setUserPos(coords)
+      setCachedUserLocation(coords[0], coords[1])
+      setFlyTo(coords)
+    } catch {}
+  }
+
+  async function openAddEventModal() {
+    setAddEventError(null)
+    setSelectedThreat(null)
+
+    if (userPos) {
+      setIsAddEventOpen(true)
+      return
+    }
+
+    try {
+      const coords = await requestCurrentPosition()
+      setUserPos(coords)
+      setCachedUserLocation(coords[0], coords[1])
+      setIsAddEventOpen(true)
+    } catch (error) {
+      setAddEventError(error instanceof Error ? error.message : 'Unable to get your location.')
+    }
+  }
+
+  async function handleAddEventSubmit(values: AddEventFormValues) {
+    if (!userPos) {
+      setAddEventError('We need your current location before you can report an event.')
+      return
+    }
+
+    setIsSubmittingEvent(true)
+    setAddEventError(null)
+
+    let detectedAreaId: string | null = null
+    let locationLabel = 'Your current location'
+
+    try {
+      try {
+        const areaData = await apiGet<AreaDetectResponse>('/api/areas/detect', {
+          lat: String(userPos[0]),
+          lng: String(userPos[1]),
+        })
+        detectedAreaId = areaData.area?.id ?? null
+        locationLabel = areaData.area?.name ?? locationLabel
+      } catch {
+        // Area detection is best-effort; continue without it
+      }
+
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { data, error } = await supabase
+        .from('events')
+        .insert({
+          title: values.title,
+          description: values.description,
+          threat_type: values.threatType,
+          severity: values.severity,
+          occurred_at: new Date().toISOString(),
+          // PostGIS WKT: POINT(lng lat)
+          location: `SRID=4326;POINT(${userPos[1]} ${userPos[0]})`,
+          location_label: locationLabel,
+          source_type: 'user',
+          area_id: detectedAreaId,
+          author_id: user?.id ?? null,
+        })
+        .select('id, created_at')
+        .single()
+
+      if (error) throw new Error(error.message)
+
+      const refreshedThreats = await loadThreats()
+      const createdThreat = refreshedThreats.find((threat) => threat.id === data.id) ?? {
+        id: data.id,
+        title: values.title,
+        category: THREAT_TYPE_MAP[values.threatType] ?? 'CRIME',
+        severity: values.severity.toUpperCase() as ThreatSeverity,
+        severityPct: SEVERITY_PCT[values.severity] ?? 50,
+        location: locationLabel,
+        lat: userPos[0],
+        lng: userPos[1],
+        minutesAgo: 0,
+        upvotes: 0,
+        downvotes: 0,
+        source: 'user',
+        sourceUrl: null,
+      }
+
+      if (!refreshedThreats.some((threat) => threat.id === data.id)) {
+        setThreats((current) => [createdThreat, ...current.filter((threat) => threat.id !== data.id)])
+      }
+
+      setIsAddEventOpen(false)
+      setSelectedThreat(createdThreat)
+    } catch (error) {
+      setAddEventError(
+        error instanceof Error ? error.message : 'Failed to report the event. Please try again.',
+      )
+    } finally {
+      setIsSubmittingEvent(false)
+    }
   }
 
   // Block render until we have an initial center (first-visit geolocation pending)
@@ -314,6 +463,12 @@ export function MapView() {
         />
       )}
 
+      {addEventError && !isAddEventOpen && (
+        <div className="fixed right-6 left-6 md:left-auto md:w-80 bottom-44 z-50 bg-error-container text-on-error-container border-[3px] border-black shadow-hard px-4 py-3">
+          <p className="font-body text-sm">{addEventError}</p>
+        </div>
+      )}
+
       <button
         onClick={centreOnUser}
         className="fixed bottom-44 right-6 w-12 h-12 bg-surface-container border-2 border-black shadow-hard active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center justify-center z-40 transition-none"
@@ -323,11 +478,26 @@ export function MapView() {
       </button>
 
       <button
+        onClick={openAddEventModal}
         className="fixed bottom-24 right-6 w-16 h-16 bg-primary-container border-[3px] border-black shadow-hard active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center justify-center z-40 transition-none"
         aria-label="Add new alert"
       >
         <span className="material-symbols-outlined text-on-primary-container text-4xl font-bold">add</span>
       </button>
+
+      {isAddEventOpen && userPos && (
+        <AddEventModal
+          error={addEventError}
+          isSubmitting={isSubmittingEvent}
+          location={userPos}
+          onClose={() => {
+            if (isSubmittingEvent) return
+            setIsAddEventOpen(false)
+            setAddEventError(null)
+          }}
+          onSubmit={handleAddEventSubmit}
+        />
+      )}
     </div>
   )
 }
