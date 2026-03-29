@@ -49,13 +49,13 @@
 ### Dev 1 (Olexii) — Frontend Lead
 
 **Auth & Account (HIGH PRIORITY — next up)**
-- [ ] `AuthPage.tsx` — email/password sign-up/sign-in UI (neo-brutalist styled)
-- [ ] Google OAuth sign-in button on AuthPage
-- [ ] Configure Google OAuth provider in Supabase (Google Cloud Console credentials)
-- [ ] `supabase.ts` — Supabase JS client init in frontend
-- [ ] `useAuth.ts` hook with `supabase.auth.onAuthStateChange`
-- [ ] Auth guard on routes — redirect to `/auth` if not logged in
-- [ ] Wire profile page to real user data
+- [x] `AuthPage.tsx` — email/password sign-up/sign-in UI (neo-brutalist styled)
+- [x] Google OAuth sign-in button on AuthPage
+- [x] Configure Google OAuth provider in Supabase (Google Cloud Console credentials)
+- [x] `supabase.ts` — Supabase JS client init in frontend
+- [x] `useAuth.ts` hook with `supabase.auth.onAuthStateChange`
+- [x] Auth guard on routes — redirect to `/auth` if not logged in
+- [x] Wire profile page to real user data
 
 **Wire Frontend to Supabase (replace mock data)**
 - [ ] `useEvents.ts` — fetch events from Supabase, replace mock data
@@ -98,15 +98,15 @@
 ### Dev 3 (Egor) — Novice-Friendly Frontend
 
 **Notifications UI**
-- [ ] Notification bell in `TopBar` with unread count badge
-- [ ] Notification list/dropdown
+- [x] Notification bell in `TopBar` with unread count badge
+- [x] Notification list/dropdown
 
 **Profile & Subscriptions**
 - [ ] Area subscription flow — select/add monitored areas
 - [ ] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
 
 **Integration**
-- [ ] "VIEW MAP" on feed cards → navigate to Map centered on that event
+- [x] "VIEW MAP" on feed cards → navigate to Map centered on that event
 
 **Stretch**
 - [ ] Business suggestions along route (static icons)
