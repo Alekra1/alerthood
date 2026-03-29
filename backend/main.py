@@ -18,7 +18,7 @@ from services.gdacs_scraper import run_gdacs_scraper
 from services.bg_news_scraper import run_bg_news_scraper
 from services.neighborhood_scores import refresh_all_scores
 from services.notify import dispatch_recent_notifications
-from services.boundary_ingestion import ingest_all_cities
+from services.boundary_ingestion import ingest_all_cities, ingest_neighborhoods_for_city
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,7 +28,8 @@ async def scraper_loop():
     settings = get_settings()
     interval = settings.scraper_interval_minutes * 60
 
-    # One-time: ingest neighborhood boundaries if none exist yet
+    # One-time: ingest neighborhood boundaries if none exist yet,
+    # or ingest neighborhoods for cities that have no children
     try:
         from db import get_supabase
         sb = get_supabase()
@@ -41,9 +42,34 @@ async def scraper_loop():
             .execute()
         )
         if not boundary_check.count:
-            logger.info("No neighborhood boundaries found — running initial ingestion...")
+            logger.info("No neighborhood boundaries found — running full ingestion...")
             results = await ingest_all_cities()
             logger.info("Boundary ingestion complete: %s", results)
+        else:
+            # Check for cities with no neighborhoods and ingest them
+            cities = (
+                sb.table("areas")
+                .select("id, name, country_code")
+                .eq("area_type", "city")
+                .eq("is_active", True)
+                .execute()
+            )
+            for city in (cities.data or []):
+                cc = city.get("country_code", "")
+                if not cc:
+                    continue
+                child_check = (
+                    sb.table("areas")
+                    .select("id", count="exact")
+                    .eq("parent_id", city["id"])
+                    .limit(1)
+                    .execute()
+                )
+                if not child_check.count:
+                    logger.info("City %s has no neighborhoods — ingesting...", city["name"])
+                    count = await ingest_neighborhoods_for_city(city["id"], cc)
+                    logger.info("Ingested %d neighborhoods for %s", count, city["name"])
+                    await asyncio.sleep(OVERPASS_RATE_LIMIT_SECONDS)
     except Exception:
         logger.exception("Boundary ingestion failed — will retry next startup")
 
