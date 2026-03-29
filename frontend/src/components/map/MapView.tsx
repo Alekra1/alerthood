@@ -1,17 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import { supabase } from '../../lib/supabase'
 import { getCachedUserLocation, setCachedUserLocation } from '../../lib/userLocation'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { useHeatmap } from '../../hooks/useHeatmap'
+import { useSafeRoute } from '../../hooks/useSafeRoute'
 import { useNeighborhoods } from '../../hooks/useNeighborhoods'
 import type { NeighborhoodFeature } from '../../hooks/useNeighborhoods'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
 import { DistrictBottomSheet } from './DistrictBottomSheet'
 import { AddEventModal } from './AddEventModal'
+import { SafeRouteOverlay } from './SafeRouteOverlay'
 import type { AddEventFormValues } from './AddEventModal'
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
@@ -115,13 +117,15 @@ function FlyTo({ position }: { position: [number, number] }) {
 }
 
 // Saves map center/zoom to module-level vars whenever the user pans or zooms
-function MapStateSync() {
+// Also handles long-press (contextmenu) for route destination selection
+function MapInteractions({ onContextMenu }: { onContextMenu: (e: L.LeafletMouseEvent) => void }) {
   useMapEvents({
     moveend: (e) => {
       const c = e.target.getCenter()
       savedCenter = [c.lat, c.lng]
       savedZoom = e.target.getZoom()
     },
+    contextmenu: onContextMenu,
   })
   return null
 }
@@ -236,6 +240,17 @@ export function MapView() {
   const [addEventError, setAddEventError] = useState<string | null>(null)
   const [selectedDistrict, setSelectedDistrict] = useState<NeighborhoodFeature['properties'] | null>(null)
   const { cells, loading } = useHeatmap(null)
+
+  const { route, calculate: calculateRoute, clear: clearRoute, loading: routeLoading, error: routeError } = useSafeRoute()
+  const [routeDestPending, setRouteDestPending] = useState<{ lat: number; lng: number } | null>(null)
+
+  function handleMapContextMenu(e: L.LeafletMouseEvent) {
+    if (!userPos) {
+      alert('Please wait for your location to be found before planning a route.')
+      return
+    }
+    setRouteDestPending(e.latlng)
+  }
 
   async function loadThreats(): Promise<Threat[]> {
     const { data, error } = await supabase.rpc('events_with_coords', { max_rows: 100 })
@@ -413,7 +428,7 @@ export function MapView() {
           attributionControl={false}
         >
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
-          <MapStateSync />
+          <MapInteractions onContextMenu={handleMapContextMenu} />
 
           <NeighborhoodLayer onDistrictClick={(props) => { setSelectedThreat(null); setSelectedDistrict(props) }} />
 
@@ -451,8 +466,57 @@ export function MapView() {
               </Popup>
             </CircleMarker>
           ))}
+
+          {routeDestPending && (
+            <Marker position={[routeDestPending.lat, routeDestPending.lng]}>
+              <Popup
+                onClose={() => setRouteDestPending(null)}
+                className="route-dest-popup"
+              >
+                <div className="flex flex-col gap-2 p-1">
+                  <span className="font-headline uppercase text-black text-xs font-bold">Plan Route?</span>
+                  <button
+                    className="bg-primary text-black px-3 py-1 font-bold text-xs uppercase"
+                    onClick={() => {
+                      if (userPos && routeDestPending) {
+                        calculateRoute(userPos[0], userPos[1], routeDestPending.lat, routeDestPending.lng)
+                        setRouteDestPending(null)
+                      }
+                    }}
+                  >
+                    Yes, safe route
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {route && (
+            <Polyline
+              positions={route.waypoints.map(w => [w.lat, w.lng])}
+              pathOptions={{ color: '#4ade80', weight: 5, opacity: 0.8 }}
+            />
+          )}
+
         </MapContainer>
       </div>
+
+      {(routeLoading || routeError || route) && (
+        <SafeRouteOverlay
+          route={route!}
+          loading={routeLoading}
+          error={routeError}
+          onClear={() => {
+            clearRoute()
+            setRouteDestPending(null)
+          }}
+          onOpenMaps={() => {
+            if (route?.google_maps_url) {
+              window.open(route.google_maps_url, '_blank')
+            }
+          }}
+        />
+      )}
 
       {loading && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-surface-container border-2 border-black px-4 py-2 shadow-hard-sm">
