@@ -36,8 +36,10 @@ export function useNeighborhoods(bounds: Bounds | null, zoom: number) {
   const [geojson, setGeojson] = useState<FeatureCollection | null>(null)
   const [loading, setLoading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const requestIdRef = useRef(0)
 
   const fetchNeighborhoods = useCallback(async (b: Bounds, z: number) => {
+    const requestId = ++requestIdRef.current
     setLoading(true)
     try {
       const data = await apiGetPublic<FeatureCollection>('/api/neighborhoods', {
@@ -47,11 +49,17 @@ export function useNeighborhoods(bounds: Bounds | null, zoom: number) {
         max_lng: String(b.maxLng),
         zoom: String(Math.round(z)),
       })
-      setGeojson(data)
+      if (requestId === requestIdRef.current) {
+        setGeojson(data)
+      }
     } catch (err) {
-      console.error('Failed to fetch neighborhoods:', err)
+      if (requestId === requestIdRef.current) {
+        console.error('Failed to fetch neighborhoods:', err)
+      }
     } finally {
-      setLoading(false)
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+      }
     }
   }, [])
 

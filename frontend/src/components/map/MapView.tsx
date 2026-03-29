@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -81,19 +81,10 @@ function NeighborhoodLayer() {
     minLat: number; minLng: number; maxLat: number; maxLng: number
   } | null>(null)
   const [zoom, setZoom] = useState(MAP_ZOOM)
+  const geoJsonRef = useRef<L.GeoJSON | null>(null)
 
   const map = useMapEvents({
     moveend: () => {
-      const b = map.getBounds()
-      setBounds({
-        minLat: b.getSouth(),
-        minLng: b.getWest(),
-        maxLat: b.getNorth(),
-        maxLng: b.getEast(),
-      })
-      setZoom(map.getZoom())
-    },
-    zoomend: () => {
       const b = map.getBounds()
       setBounds({
         minLat: b.getSouth(),
@@ -119,12 +110,20 @@ function NeighborhoodLayer() {
 
   const { geojson } = useNeighborhoods(bounds, zoom)
 
-  if (!geojson || geojson.features.length === 0) return null
+  // Update the Leaflet layer imperatively to avoid unmount/remount flicker
+  useEffect(() => {
+    const layer = geoJsonRef.current
+    if (!layer || !geojson) return
+    layer.clearLayers()
+    if (geojson.features.length > 0) {
+      layer.addData(geojson as any)
+    }
+  }, [geojson])
 
   return (
     <GeoJSONLayer
-      key={JSON.stringify(geojson.features.map(f => f.properties.id))}
-      data={geojson as any}
+      ref={geoJsonRef}
+      data={{ type: 'FeatureCollection', features: [] } as any}
       style={(feature) => {
         const props = (feature as any)?.properties as NeighborhoodFeature['properties'] | undefined
         const color = props?.safety_color ?? '#22c55e'
