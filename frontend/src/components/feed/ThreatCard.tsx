@@ -95,14 +95,16 @@ export function ThreatCard({ threat, initialVote = null, onViewMap }: ThreatCard
 
         <h3 className="font-headline font-bold text-xl leading-snug mb-4">{threat.title}</h3>
 
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <div className="bg-surface-container-low border-2 border-black p-2">
+        <div className="bg-surface-container-low border-2 border-black p-2 mb-4">
+          <div className="flex items-baseline justify-between mb-1.5">
             <p className="font-label font-bold text-[9px] text-primary-container uppercase">Severity</p>
-            <p className="font-headline font-black text-lg">{threat.severityPct}%</p>
+            <p className="font-headline font-black text-sm">{threat.severityPct}%</p>
           </div>
-          <div className="bg-surface-container-low border-2 border-black p-2">
-            <p className="font-label font-bold text-[9px] text-secondary-container uppercase">Relevance</p>
-            <p className="font-headline font-black text-lg">{threat.relevancePct}%</p>
+          <div className="w-full h-2 bg-black border border-outline-variant relative">
+            <div
+              className="absolute inset-y-0 left-0 bg-primary-container"
+              style={{ width: `${threat.severityPct}%` }}
+            />
           </div>
         </div>
 

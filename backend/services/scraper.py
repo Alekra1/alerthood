@@ -157,7 +157,6 @@ async def fetch_latest_gdelt_events() -> list[dict]:
             "location_label": location_label,
             "source_type": "news",
             "source_url": source_url,
-            "relevance_score": min(100, int(abs(goldstein) * 10)),
             "_lat": lat,  # used by run_scraper for area matching, removed before insert
             "_lng": lng,
         })

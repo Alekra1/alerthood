@@ -110,7 +110,6 @@ async def fetch_uk_crimes_for_area(lat: float, lng: float, date: str | None = No
             "location_label": street_name,
             "source_type": "uk_police",
             "source_url": crime_id if crime_id else None,
-            "relevance_score": {"high": 80, "medium": 60, "low": 40}.get(severity, 50),
         })
 
     logger.info("Fetched %d crimes from UK Police for (%.4f, %.4f)", len(events), lat, lng)

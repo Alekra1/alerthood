@@ -29,13 +29,6 @@ ALERT_TO_SEVERITY: dict[str, str] = {
     "Green": "medium",
 }
 
-# Alert level → relevance score
-ALERT_TO_RELEVANCE: dict[str, int] = {
-    "Red": 95,
-    "Orange": 80,
-    "Green": 60,
-}
-
 # Event type code → display name
 EVENT_TYPE_NAMES: dict[str, str] = {
     "EQ": "Earthquake",
@@ -114,7 +107,6 @@ async def run_gdacs_scraper():
 
         type_name = EVENT_TYPE_NAMES.get(event_type, event_type)
         severity = ALERT_TO_SEVERITY.get(alert_level, "medium")
-        relevance = ALERT_TO_RELEVANCE.get(alert_level, 60)
 
         # Parse occurred_at
         try:
@@ -137,7 +129,6 @@ async def run_gdacs_scraper():
             "location_label": location_label,
             "source_type": "gdacs",
             "source_url": source_url,
-            "relevance_score": relevance,
             "_lat": lat,
             "_lng": lng,
         })

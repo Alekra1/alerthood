@@ -7,7 +7,6 @@ export const MOCK_THREATS: Threat[] = [
     category: 'CRIME',
     severity: 'CRITICAL',
     severityPct: 75,
-    relevancePct: 87,
     location: 'Main St & 5th',
     lat: 41.882,
     lng: -87.631,
@@ -15,6 +14,7 @@ export const MOCK_THREATS: Threat[] = [
     upvotes: 12,
     downvotes: 2,
     source: 'Community Report',
+    sourceUrl: null,
   },
   {
     id: 't2',
@@ -22,7 +22,6 @@ export const MOCK_THREATS: Threat[] = [
     category: 'CRIME',
     severity: 'HIGH',
     severityPct: 80,
-    relevancePct: 92,
     location: 'Oak St & Michigan Ave',
     lat: 41.900,
     lng: -87.625,
@@ -30,6 +29,7 @@ export const MOCK_THREATS: Threat[] = [
     upvotes: 21,
     downvotes: 1,
     source: 'Community Report',
+    sourceUrl: null,
   },
   {
     id: 't3',
@@ -37,7 +37,6 @@ export const MOCK_THREATS: Threat[] = [
     category: 'UTILITY',
     severity: 'MEDIUM',
     severityPct: 40,
-    relevancePct: 65,
     location: '5th Ave & West End',
     lat: 41.875,
     lng: -87.648,
@@ -45,6 +44,7 @@ export const MOCK_THREATS: Threat[] = [
     upvotes: 7,
     downvotes: 3,
     source: 'City Infrastructure',
+    sourceUrl: null,
   },
   {
     id: 't4',
@@ -52,7 +52,6 @@ export const MOCK_THREATS: Threat[] = [
     category: 'NATURAL',
     severity: 'HIGH',
     severityPct: 60,
-    relevancePct: 78,
     location: 'Park Ave & River Rd',
     lat: 41.891,
     lng: -87.612,
@@ -60,6 +59,7 @@ export const MOCK_THREATS: Threat[] = [
     upvotes: 35,
     downvotes: 0,
     source: 'City Emergency',
+    sourceUrl: null,
   },
   {
     id: 't5',
@@ -67,7 +67,6 @@ export const MOCK_THREATS: Threat[] = [
     category: 'DISTURBANCE',
     severity: 'LOW',
     severityPct: 15,
-    relevancePct: 40,
     location: 'Central Park Ave',
     lat: 41.870,
     lng: -87.618,
@@ -75,6 +74,7 @@ export const MOCK_THREATS: Threat[] = [
     upvotes: 4,
     downvotes: 8,
     source: 'Community Report',
+    sourceUrl: null,
   },
 ]
 

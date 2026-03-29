@@ -85,7 +85,6 @@ export function AreaSummaryView() {
             category: THREAT_TYPE_MAP[(e.threat_type as string)] ?? 'CRIME',
             severity: (e.severity as string).toUpperCase() as ThreatSeverity,
             severityPct: SEVERITY_PCT[(e.severity as string)] ?? 50,
-            relevancePct: (e.relevance_score as number) ?? 50,
             location: (e.location_label as string) ?? '',
             lat: (e.lat as number) ?? 0,
             lng: (e.lng as number) ?? 0,
@@ -93,6 +92,7 @@ export function AreaSummaryView() {
             upvotes: 0,
             downvotes: 0,
             source: (e.source_type as string) ?? '',
+            sourceUrl: (e.source_url as string) ?? null,
           }
         })
         setEvents(mapped)

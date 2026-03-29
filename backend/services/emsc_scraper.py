@@ -110,7 +110,6 @@ async def fetch_emsc_earthquakes() -> list[dict]:
             "location_label": place,
             "source_type": "emsc",
             "source_url": source_url,
-            "relevance_score": min(100, int(mag * 20)),
             "_lat": lat,
             "_lng": lng,
         })

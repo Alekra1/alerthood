@@ -7,7 +7,6 @@ export interface Threat {
   category: ThreatCategory
   severity: ThreatSeverity
   severityPct: number
-  relevancePct: number
   location: string
   lat: number
   lng: number
@@ -15,6 +14,7 @@ export interface Threat {
   upvotes: number
   downvotes: number
   source: string
+  sourceUrl: string | null
 }
 
 export interface MonitoredArea {

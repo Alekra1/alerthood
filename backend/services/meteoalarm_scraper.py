@@ -151,7 +151,6 @@ async def fetch_and_insert_meteoalarm(country: str, db: Client, areas_by_city: d
             "location_label": cap_areadesc,
             "source_type": "meteoalarm",
             "source_url": alert_id,
-            "relevance_score": {"critical": 95, "high": 80, "medium": 60, "low": 40}.get(severity, 50),
             "area_id": area["id"],
         })
 

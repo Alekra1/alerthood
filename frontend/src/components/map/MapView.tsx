@@ -178,7 +178,6 @@ export function MapView() {
           category: THREAT_TYPE_MAP[e.threat_type] ?? 'CRIME',
           severity: (e.severity as string).toUpperCase() as ThreatSeverity,
           severityPct: SEVERITY_PCT[e.severity as string] ?? 50,
-          relevancePct: e.relevance_score ?? 0,
           location: e.location_label ?? '',
           lat: e.lat,
           lng: e.lng,
@@ -186,6 +185,7 @@ export function MapView() {
           upvotes: 0,
           downvotes: 0,
           source: e.source_type ?? '',
+          sourceUrl: e.source_url ?? null,
         } as Threat))
       )
     })
@@ -311,7 +311,6 @@ export function MapView() {
         <AlertBottomSheet
           threat={selectedThreat}
           onClose={() => setSelectedThreat(null)}
-          onViewDetails={() => setSelectedThreat(null)}
         />
       )}
 
