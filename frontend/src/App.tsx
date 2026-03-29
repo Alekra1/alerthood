@@ -5,6 +5,7 @@ import { TopBar } from './components/layout/TopBar'
 import { BottomNav } from './components/layout/BottomNav'
 import { MapPage } from './pages/MapPage'
 import { FeedPage } from './pages/FeedPage'
+import { AreaPage } from './pages/AreaPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { AuthPage } from './pages/AuthPage'
 
@@ -16,6 +17,7 @@ function AppShell() {
         <Route path="/" element={<Navigate to="/map" replace />} />
         <Route path="/map" element={<ProtectedRoute><MapPage /></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
+        <Route path="/area" element={<ProtectedRoute><AreaPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/auth" element={<AuthPage />} />
       </Routes>

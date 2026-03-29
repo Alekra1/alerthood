@@ -50,7 +50,7 @@ export interface UserProfile {
   areas: MonitoredArea[]
 }
 
-export type TabId = 'map' | 'feed' | 'profile'
+export type TabId = 'map' | 'feed' | 'area' | 'profile'
 
 export interface Notification {
   id: string
