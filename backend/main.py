@@ -9,6 +9,7 @@ from config import get_settings
 from routers import events, areas
 from routers.routes import router as routes_router
 from routers.scores import router as scores_router
+from routers.neighborhoods import router as neighborhoods_router
 from services.scraper import run_scraper
 from services.uk_police_scraper import run_uk_police_scraper
 from services.meteoalarm_scraper import run_meteoalarm_scraper
@@ -76,6 +77,7 @@ app.include_router(events.router)
 app.include_router(areas.router)
 app.include_router(routes_router)
 app.include_router(scores_router)
+app.include_router(neighborhoods_router)
 
 
 @app.get("/health")
