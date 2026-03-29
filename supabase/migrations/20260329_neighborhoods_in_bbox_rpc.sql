@@ -38,10 +38,7 @@ RETURNS TABLE (
   LEFT JOIN public.areas p ON p.id = a.parent_id
   WHERE a.is_active = true
     AND a.boundary IS NOT NULL
-    AND (
-      zoom_level >= 10
-      OR a.area_type = target_area_type
-    )
+    AND a.area_type = target_area_type
     AND extensions.st_intersects(
       a.boundary,
       extensions.st_makeenvelope(min_lng, min_lat, max_lng, max_lat, 4326)

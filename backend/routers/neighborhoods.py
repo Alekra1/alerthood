@@ -22,7 +22,6 @@ async def get_neighborhoods(
     """Return GeoJSON FeatureCollection of neighborhoods in viewport."""
     sb = get_supabase()
 
-    # Show cities at low zoom, neighborhoods at high zoom
     area_type = "city" if zoom < 10 else "neighborhood"
 
     result = sb.rpc("neighborhoods_in_bbox", {

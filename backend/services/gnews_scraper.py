@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timezone
 
 from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderServiceError
+from geopy.exc import GeopyError
 from gnews import GNews
 
 from db import get_supabase
@@ -38,7 +38,7 @@ def _geocode_city(city: str) -> tuple[float, float] | None:
         location = _geocoder.geocode(city, timeout=10)
         if location:
             return (location.latitude, location.longitude)
-    except GeocoderServiceError as e:
+    except GeopyError as e:
         logger.warning("Geocoding failed for '%s': %s", city, e)
     return None
 

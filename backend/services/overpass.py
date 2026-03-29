@@ -168,7 +168,6 @@ def _chain_ways_into_rings(ways: list[list[list[float]]]) -> list[list[list[floa
     rings: list[list[list[float]]] = []
 
     while remaining:
-        # Start a new ring with the first remaining way
         current_ring = list(remaining.pop(0))
         changed = True
 
@@ -182,28 +181,24 @@ def _chain_ways_into_rings(ways: list[list[list[float]]]) -> list[list[list[floa
                 ring_start = current_ring[0]
                 ring_end = current_ring[-1]
 
-                # Try to append: does this way's start match our ring's end?
                 if _pts_equal(ring_end, way_start, EPSILON):
                     current_ring.extend(way[1:])
                     remaining.pop(i)
                     changed = True
                     continue
 
-                # Try to append reversed: does this way's end match our ring's end?
                 if _pts_equal(ring_end, way_end, EPSILON):
                     current_ring.extend(reversed(way[:-1]))
                     remaining.pop(i)
                     changed = True
                     continue
 
-                # Try to prepend: does this way's end match our ring's start?
                 if _pts_equal(ring_start, way_end, EPSILON):
                     current_ring = way[:-1] + current_ring
                     remaining.pop(i)
                     changed = True
                     continue
 
-                # Try to prepend reversed: does this way's start match our ring's start?
                 if _pts_equal(ring_start, way_start, EPSILON):
                     current_ring = list(reversed(way[1:])) + current_ring
                     remaining.pop(i)
@@ -212,7 +207,6 @@ def _chain_ways_into_rings(ways: list[list[list[float]]]) -> list[list[list[floa
 
                 i += 1
 
-        # Only accept closed rings (first point == last point)
         if len(current_ring) >= 4 and _pts_equal(current_ring[0], current_ring[-1], EPSILON):
             rings.append(current_ring)
 

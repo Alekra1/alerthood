@@ -84,7 +84,7 @@ async def filter_relevant_titles(items: list[dict]) -> list[int]:
         indices = data.get("relevant", [])
         return [int(i) for i in indices if isinstance(i, (int, float))]
     except Exception as e:
-        logger.warning("Stage 1 DeepSeek call failed: %s", e)
+        logger.exception("Stage 1 DeepSeek call failed: %s", e)
         return []
 
 
@@ -115,7 +115,7 @@ async def extract_event(title: str, text: str) -> dict | None:
         content = response.choices[0].message.content or ""
         data = json.loads(content)
     except Exception as e:
-        logger.warning("Stage 2 DeepSeek call failed for %r: %s", title[:60], e)
+        logger.exception("Stage 2 DeepSeek call failed for %r: %s", title[:60], e)
         return None
 
     # Require a non-empty location to be able to geocode
