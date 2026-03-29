@@ -8,7 +8,7 @@ import { SafetyScoreGauge } from './SafetyScoreGauge'
 import { ActiveAlertCard } from './ActiveAlertCard'
 import { MiniHeatmap } from './MiniHeatmap'
 import { RecentIncidentsList } from './RecentIncidentsList'
-import { AIBriefPlaceholder } from './AIBriefPlaceholder'
+import { AIAreaBrief } from './AIAreaBrief'
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
@@ -260,8 +260,20 @@ export function AreaSummaryView() {
         <div className="h-32 bg-on-surface/5 animate-pulse rounded" />
       )}
 
-      {/* 5.6 AI Brief Placeholder */}
-      <AIBriefPlaceholder />
+      {/* 5.6 AI Area Brief */}
+      {area && areaScore && !eventsLoading && !scoresLoading && (
+        <AIAreaBrief
+          areaId={area.id}
+          areaName={area.name as string}
+          safetyScore={score}
+          riskLevel={risk.label}
+          crimeCount={areaScore.crime_count}
+          crimeRatePerKm2={areaScore.crime_rate_per_km2}
+          scoreUpdatedAt={areaScore.score_updated_at}
+          activeAlert={activeAlert}
+          recentEvents={recentEvents}
+        />
+      )}
     </div>
   )
 }

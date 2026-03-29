@@ -11,8 +11,11 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://alerthood.pages.dev",
     ]
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://openrouter.ai/api/v1"
+    deepseek_model: str = "deepseek/deepseek-chat"
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 @lru_cache
