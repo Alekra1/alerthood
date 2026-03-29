@@ -134,6 +134,15 @@ async def subscribe_to_area(
     return SubscribeResponse(subscription_id=result.data[0]["id"])
 
 
+@router.delete("/areas/{area_id}/subscribe", status_code=204)
+async def unsubscribe_from_area(
+    area_id: str,
+    user_id: str = Depends(get_current_user),
+    db: Client = Depends(get_supabase),
+):
+    db.table("user_area_subscriptions").delete().eq("user_id", user_id).eq("area_id", area_id).execute()
+
+
 @router.patch("/subscriptions/{subscription_id}/notifications", status_code=204)
 async def update_notification_prefs(
     subscription_id: str,

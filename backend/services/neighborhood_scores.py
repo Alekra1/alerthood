@@ -127,12 +127,15 @@ def _fetch_all_scores_sync() -> int:
             "score_updated_at": now,
         })
 
-    try:
-        sb.table("areas").upsert(rows, on_conflict="id").execute()
-        updated = len(rows)
-    except Exception as e:
-        logger.error("Failed to batch update safety scores: %s", e, exc_info=True)
-        updated = 0
+    updated = 0
+    for row in rows:
+        area_id = row["id"]
+        payload = {k: v for k, v in row.items() if k != "id"}
+        try:
+            sb.table("areas").update(payload).eq("id", area_id).execute()
+            updated += 1
+        except Exception as e:
+            logger.error("Failed to update safety score for area %s: %s", area_id, e)
 
     logger.info("Refreshed safety scores for %d areas", updated)
     return updated

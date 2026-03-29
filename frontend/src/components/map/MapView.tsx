@@ -9,6 +9,7 @@ import { useNeighborhoods } from '../../hooks/useNeighborhoods'
 import type { NeighborhoodFeature } from '../../hooks/useNeighborhoods'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
+import { DistrictBottomSheet } from './DistrictBottomSheet'
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
   crime: 'CRIME',
@@ -24,8 +25,9 @@ const SEVERITY_PCT: Record<string, number> = {
   critical: 95,
 }
 
-const MAP_CENTER: [number, number] = [41.882, -87.631]
+const MAP_CENTER: [number, number] = [20, 0]
 const MAP_ZOOM = 16
+const MAP_FALLBACK_ZOOM = 3
 const MAP_MIN_ZOOM = 3
 const WORLD_BOUNDS: [[number, number], [number, number]] = [[-85.051129, -180], [85.051129, 180]]
 
@@ -76,7 +78,7 @@ function MapStateSync() {
   return null
 }
 
-function NeighborhoodLayer() {
+function NeighborhoodLayer({ onDistrictClick }: { onDistrictClick: (props: NeighborhoodFeature['properties']) => void }) {
   const [bounds, setBounds] = useState<{
     minLat: number; minLng: number; maxLat: number; maxLng: number
   } | null>(null)
@@ -154,6 +156,7 @@ function NeighborhoodLayer() {
           `<strong>${props.name}</strong><br/>Safety: ${Math.round(props.safety_score)}%`,
           { sticky: true, className: '!bg-black/80 !text-white !border-black !text-xs !font-mono !rounded-none' }
         )
+        layer.on('click', () => onDistrictClick(props))
       }}
     />
   )
@@ -179,6 +182,7 @@ export function MapView() {
 
   const [threats, setThreats] = useState<Threat[]>([])
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null)
+  const [selectedDistrict, setSelectedDistrict] = useState<NeighborhoodFeature['properties'] | null>(null)
   const { cells, loading } = useHeatmap(null)
 
   useEffect(() => {
@@ -218,11 +222,11 @@ export function MapView() {
         }
       },
       () => {
-        // Geolocation denied / unavailable on first visit — fall back to default
+        // Geolocation denied / unavailable on first visit — fall back to world view
         if (isFirstVisit) {
           setInitialCenter(MAP_CENTER)
           savedCenter = MAP_CENTER
-          savedZoom = MAP_ZOOM
+          savedZoom = MAP_FALLBACK_ZOOM
         }
       },
       { enableHighAccuracy: true, timeout: 8000 },
@@ -264,7 +268,7 @@ export function MapView() {
       <div className="absolute inset-0 z-0">
         <MapContainer
           center={initialCenter}
-          zoom={savedZoom ?? MAP_ZOOM}
+          zoom={savedZoom ?? MAP_FALLBACK_ZOOM}
           minZoom={MAP_MIN_ZOOM}
           maxBounds={WORLD_BOUNDS}
           maxBoundsViscosity={1}
@@ -275,7 +279,7 @@ export function MapView() {
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
           <MapStateSync />
 
-          <NeighborhoodLayer />
+          <NeighborhoodLayer onDistrictClick={(props) => { setSelectedThreat(null); setSelectedDistrict(props) }} />
 
           {flyTo && <FlyTo position={flyTo} />}
 
@@ -320,7 +324,14 @@ export function MapView() {
         </div>
       )}
 
-      {selectedThreat && (
+      {selectedDistrict && (
+        <DistrictBottomSheet
+          district={selectedDistrict}
+          onClose={() => setSelectedDistrict(null)}
+        />
+      )}
+
+      {selectedThreat && !selectedDistrict && (
         <AlertBottomSheet
           threat={selectedThreat}
           onClose={() => setSelectedThreat(null)}
