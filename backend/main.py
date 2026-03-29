@@ -14,6 +14,7 @@ from services.uk_police_scraper import run_uk_police_scraper
 from services.meteoalarm_scraper import run_meteoalarm_scraper
 from services.emsc_scraper import run_emsc_scraper
 from services.gdacs_scraper import run_gdacs_scraper
+from services.bg_news_scraper import run_bg_news_scraper
 from services.neighborhood_scores import refresh_all_scores
 from services.notify import dispatch_recent_notifications
 
@@ -33,9 +34,10 @@ async def scraper_loop():
                 run_meteoalarm_scraper(),
                 run_emsc_scraper(),
                 run_gdacs_scraper(),
+                run_bg_news_scraper(),
                 return_exceptions=True,
             )
-            names = ["GDELT", "UK Police", "MeteoAlarm", "EMSC", "GDACS"]
+            names = ["GDELT", "UK Police", "MeteoAlarm", "EMSC", "GDACS", "BG News"]
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error("%s scraper failed: %s", names[i], result, exc_info=result)
