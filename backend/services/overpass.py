@@ -15,7 +15,7 @@ COUNTRY_ADMIN_LEVELS: dict[str, dict[str, str]] = {
     "GB": {"city": "8", "neighborhood": "10"},
     "DE": {"city": "6", "neighborhood": "9,10"},
     "FR": {"city": "8", "neighborhood": "9,10"},
-    "BG": {"city": "6", "neighborhood": "9"},
+    "BG": {"city": "8", "neighborhood": "9,10"},
 }
 DEFAULT_ADMIN_LEVELS = {"city": "8", "neighborhood": "9,10"}
 
@@ -89,9 +89,13 @@ async def fetch_city_boundary(
     levels = _admin_levels(country_code, "city")
     level_filter = levels[0]
 
+    # Try name:en first (for non-Latin-script countries like BG), then name
     query = f"""
     [out:json][timeout:{REQUEST_TIMEOUT}];
-    relation["boundary"="administrative"]["admin_level"="{level_filter}"]["name"="{city_name}"];
+    (
+      relation["boundary"="administrative"]["admin_level"="{level_filter}"]["name:en"="{city_name}"];
+      relation["boundary"="administrative"]["admin_level"="{level_filter}"]["name"="{city_name}"];
+    );
     out geom;
     """
 
