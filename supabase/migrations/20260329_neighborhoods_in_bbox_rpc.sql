@@ -24,13 +24,13 @@ RETURNS TABLE (
     a.crime_count AS event_count_90d,
     p.name AS parent_name,
     extensions.st_asgeojson(
-      extensions.st_simplify(
+      extensions.st_simplifypreservetopology(
         a.boundary,
         CASE
           WHEN zoom_level >= 15 THEN 0.00001
           WHEN zoom_level >= 12 THEN 0.0001
           WHEN zoom_level >= 10 THEN 0.001
-          ELSE 0.01
+          ELSE 0.005
         END
       )
     ) AS geojson
@@ -38,7 +38,10 @@ RETURNS TABLE (
   LEFT JOIN public.areas p ON p.id = a.parent_id
   WHERE a.is_active = true
     AND a.boundary IS NOT NULL
-    AND a.area_type = target_area_type
+    AND (
+      zoom_level >= 10
+      OR a.area_type = target_area_type
+    )
     AND extensions.st_intersects(
       a.boundary,
       extensions.st_makeenvelope(min_lng, min_lat, max_lng, max_lat, 4326)

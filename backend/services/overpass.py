@@ -126,28 +126,99 @@ def _relation_to_multipolygon(element: dict) -> dict | None:
     """Convert an Overpass relation with geometry to a GeoJSON MultiPolygon.
 
     Overpass `out geom` returns members with geometry arrays.
-    We extract outer ways and assemble them into polygon rings.
+    We extract outer ways, chain them into closed rings, and
+    assemble them into a proper MultiPolygon.
     """
-    outer_ways = []
+    outer_ways: list[list[list[float]]] = []
     for member in element.get("members", []):
         if member.get("role") == "outer" and member.get("geometry"):
             coords = [
                 [pt["lon"], pt["lat"]]
                 for pt in member["geometry"]
             ]
-            if len(coords) >= 4:
+            if len(coords) >= 2:
                 outer_ways.append(coords)
 
     if not outer_ways:
         return None
 
-    # Each outer way becomes a polygon in the MultiPolygon
-    polygons = [
-        [ring]  # Each polygon is [outer_ring, ...holes] — no holes for now
-        for ring in outer_ways
-    ]
+    rings = _chain_ways_into_rings(outer_ways)
+
+    if not rings:
+        return None
+
+    polygons = [[ring] for ring in rings]
 
     return {
         "type": "MultiPolygon",
         "coordinates": polygons,
     }
+
+
+def _chain_ways_into_rings(ways: list[list[list[float]]]) -> list[list[list[float]]]:
+    """Stitch OSM ways into closed rings by matching endpoints.
+
+    OSM splits administrative boundaries into multiple ways.
+    Each way's end should connect to another way's start/end.
+    We greedily chain them until we form a closed ring, then
+    start the next ring with remaining ways.
+    """
+    EPSILON = 1e-9
+    remaining = list(ways)
+    rings: list[list[list[float]]] = []
+
+    while remaining:
+        # Start a new ring with the first remaining way
+        current_ring = list(remaining.pop(0))
+        changed = True
+
+        while changed:
+            changed = False
+            i = 0
+            while i < len(remaining):
+                way = remaining[i]
+                way_start = way[0]
+                way_end = way[-1]
+                ring_start = current_ring[0]
+                ring_end = current_ring[-1]
+
+                # Try to append: does this way's start match our ring's end?
+                if _pts_equal(ring_end, way_start, EPSILON):
+                    current_ring.extend(way[1:])
+                    remaining.pop(i)
+                    changed = True
+                    continue
+
+                # Try to append reversed: does this way's end match our ring's end?
+                if _pts_equal(ring_end, way_end, EPSILON):
+                    current_ring.extend(reversed(way[:-1]))
+                    remaining.pop(i)
+                    changed = True
+                    continue
+
+                # Try to prepend: does this way's end match our ring's start?
+                if _pts_equal(ring_start, way_end, EPSILON):
+                    current_ring = way[:-1] + current_ring
+                    remaining.pop(i)
+                    changed = True
+                    continue
+
+                # Try to prepend reversed: does this way's start match our ring's start?
+                if _pts_equal(ring_start, way_start, EPSILON):
+                    current_ring = list(reversed(way[1:])) + current_ring
+                    remaining.pop(i)
+                    changed = True
+                    continue
+
+                i += 1
+
+        # Only accept closed rings (first point == last point)
+        if len(current_ring) >= 4 and _pts_equal(current_ring[0], current_ring[-1], EPSILON):
+            rings.append(current_ring)
+
+    return rings
+
+
+def _pts_equal(a: list[float], b: list[float], eps: float) -> bool:
+    """Check if two coordinate points are approximately equal."""
+    return abs(a[0] - b[0]) < eps and abs(a[1] - b[1]) < eps

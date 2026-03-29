@@ -110,12 +110,14 @@ function NeighborhoodLayer() {
 
   const { geojson } = useNeighborhoods(bounds, zoom)
 
-  // Update the Leaflet layer imperatively to avoid unmount/remount flicker
+  // Update the Leaflet layer imperatively — swap atomically to avoid flicker
   useEffect(() => {
     const layer = geoJsonRef.current
     if (!layer || !geojson) return
-    layer.clearLayers()
+    // Only clear + replace when we have features; prevents disappearance
+    // when crossing zoom thresholds (city ↔ neighborhood)
     if (geojson.features.length > 0) {
+      layer.clearLayers()
       layer.addData(geojson as any)
     }
   }, [geojson])
