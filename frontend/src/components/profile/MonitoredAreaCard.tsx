@@ -66,7 +66,7 @@ export function MonitoredAreaCard({ area, onDelete }: MonitoredAreaCardProps) {
           <div>
             <h4 className="font-headline text-lg font-bold">{area.name}</h4>
             <p className="text-xs font-label text-on-surface-variant">
-              {area.radiusMiles}MI RADIUS • {area.neighborhood}
+              {area.area_type === 'neighborhood' ? area.parent_name : 'City'} • Score: {area.safety_score}%
             </p>
           </div>
         </div>

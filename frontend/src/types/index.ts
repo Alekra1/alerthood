@@ -20,10 +20,10 @@ export interface Threat {
 export interface MonitoredArea {
   id: string
   name: string
-  radiusMiles: number
-  neighborhood: string
-  lat: number
-  lng: number
+  area_type: 'city' | 'neighborhood'
+  parent_name: string | null
+  safety_score: number
+  safety_color: string
   isActive: boolean
   notifyCrime: boolean
   notifyUtility: boolean

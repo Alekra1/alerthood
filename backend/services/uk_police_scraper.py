@@ -124,7 +124,7 @@ async def run_uk_police_scraper():
     try:
         areas = (
             db.table("areas")
-            .select("id, name, city, radius_km")
+            .select("id, name, city")
             .eq("is_active", True)
             .execute()
         )
