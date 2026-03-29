@@ -14,6 +14,7 @@ Run from the backend/ directory:
 """
 
 import asyncio
+import json
 import logging
 import sys
 from collections import defaultdict
@@ -44,17 +45,6 @@ def _normalise(name: str) -> str:
     n = normalize("NFKD", name).encode("ascii", "ignore").decode()
     return " ".join(n.lower().split())
 
-
-def _geojson_to_ewkt(geojson: dict) -> str:
-    coords = geojson["coordinates"]
-    polygons = []
-    for polygon in coords:
-        rings = []
-        for ring in polygon:
-            points = ", ".join(f"{lng} {lat}" for lng, lat in ring)
-            rings.append(f"({points})")
-        polygons.append(f"({', '.join(rings)})")
-    return f"SRID=4326;MULTIPOLYGON({', '.join(polygons)})"
 
 
 async def nominatim_city_bbox(
@@ -141,19 +131,29 @@ async def reingest_city(
     if not osm_neighborhoods:
         return 0, 0
 
-    existing_by_name = {_normalise(a["name"]): a for a in existing_areas}
+    # Build lookup by both full name AND district-only part.
+    # DB stores "Sofia - Lozenets"; OSM returns "Lozenets" — we need both keys.
+    existing_by_name: dict[str, dict] = {}
+    for a in existing_areas:
+        existing_by_name[_normalise(a["name"])] = a
+        if " - " in a["name"]:
+            district_part = a["name"].split(" - ", 1)[1]
+            district_key = _normalise(district_part)
+            if district_key not in existing_by_name:
+                existing_by_name[district_key] = a
+
     updated = 0
     inserted = 0
 
     for nb in osm_neighborhoods:
-        ewkt = _geojson_to_ewkt(nb["boundary_geojson"])
+        geojson_str = json.dumps(nb["boundary_geojson"])
         key = _normalise(nb["name"])
 
         if key in existing_by_name:
             area = existing_by_name[key]
             try:
                 sb.table("areas").update({
-                    "boundary": ewkt,
+                    "boundary": geojson_str,
                     "osm_id": nb["osm_id"],
                 }).eq("id", area["id"]).execute()
                 logger.info("  ✓ updated  %s", nb["name"])
@@ -169,7 +169,7 @@ async def reingest_city(
                 "osm_id": nb["osm_id"],
                 "area_type": "neighborhood",
                 "country_code": cc,
-                "boundary": ewkt,
+                "boundary": geojson_str,
                 "is_active": True,
             }
             try:

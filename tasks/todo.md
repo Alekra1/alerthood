@@ -58,18 +58,23 @@
 - [x] Wire profile page to real user data
 
 **Wire Frontend to Supabase (replace mock data)**
-- [ ] `useEvents.ts` — fetch events from Supabase, replace mock data
-- [ ] `useAreas.ts` — fetch areas from Supabase
-- [ ] `useProfile.ts` — fetch user profile + subscriptions
-- [ ] Wire feed to Supabase realtime — new events appear without refresh
-- [ ] Wire map markers to real event data (scraper events have lat/lng/severity)
+- [x] Feed (`FeedView`) — reads real events from Supabase, realtime subscription active
+- [x] Map markers — reads real events via `supabase.rpc('events_with_coords')`
+- [x] Profile — reads real user data + subscriptions from Supabase
+- [x] Area subscriptions — `useAreas.ts` posts to `/api/areas/subscribe`
+- [x] Notifications — `useNotifications.ts` with Supabase realtime
+- [ ] `BadgeGrid` — still uses `MOCK_PROFILE.badges` (badges not in DB yet)
 
 **Heatmap Layer**
-- [ ] Leaflet heatmap layer using `/api/events/heatmap` — green→yellow→red gradient
-- [ ] Time-of-day toggle on map (morning/afternoon/evening/night)
+- [x] `useHeatmap.ts` — fetches from `/api/events/heatmap`
+- [x] CircleMarker heatmap overlay on map (weight → color)
+- [ ] Time-of-day toggle UI on map (hook supports it, no toggle button yet)
 
 **"Land & Know" Briefing UI**
 - [ ] Briefing UI component — push notification or bottom sheet on app open
+
+**Area Subscription Flow**
+- [x] `AreaPickerMap` component — select area on map, confirm, subscribes via API
 
 **Integration**
 - [ ] Full flow test: signup → subscribe → see events on map + feed → toggle notifications
@@ -91,7 +96,8 @@
 - [ ] Post-deploy checklist (see DEPLOY.md)
 
 **Stretch**
-- [ ] Safe route display — colored polyline on map between two points
+- [x] `useSafeRoute.ts` + `/api/routes/safe` backend implemented
+- [ ] Safe route display — wire `useSafeRoute` to map UI (polyline + UI controls)
 
 ---
 
@@ -102,7 +108,7 @@
 - [x] Notification list/dropdown
 
 **Profile & Subscriptions**
-- [ ] Area subscription flow — select/add monitored areas
+- [x] Area subscription flow — `AreaPickerMap` in `ProfileView`, select on map + confirm
 - [x] Notification preference toggles wired to `PATCH /api/subscriptions/{id}/notifications`
 
 **Integration**
