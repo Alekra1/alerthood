@@ -262,16 +262,16 @@ export function AreaSummaryView() {
         <div className="h-32 bg-on-surface/5 animate-pulse rounded" />
       )}
 
-      {/* 5.6 AI Area Brief */}
-      {area && areaScore && !eventsLoading && !scoresLoading && (
+      {/* 5.6 AI Area Brief — shown as soon as area resolves, score is optional */}
+      {area && !eventsLoading && !scoresLoading && (
         <AIAreaBrief
           areaId={area.id}
           areaName={area.name as string}
           safetyScore={score}
           riskLevel={risk.label}
-          crimeCount={areaScore.crime_count}
-          crimeRatePerKm2={areaScore.crime_rate_per_km2}
-          scoreUpdatedAt={areaScore.score_updated_at}
+          crimeCount={areaScore?.crime_count ?? 0}
+          crimeRatePerKm2={areaScore?.crime_rate_per_km2 ?? 0}
+          scoreUpdatedAt={areaScore?.score_updated_at ?? null}
           activeAlert={activeAlert}
           recentEvents={recentEvents}
         />
