@@ -4,29 +4,6 @@
 
 ---
 
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><b>Map</b></td>
-    <td align="center"><b>Threat Feed</b></td>
-  </tr>
-  <tr>
-    <td><img src="design/alerthood_map_view/screen.png" width="200"/></td>
-    <td><img src="design/alerthood_threat_feed/screen.png" width="200"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Area Dashboard</b></td>
-    <td align="center"><b>Profile</b></td>
-  </tr>
-  <tr>
-    <td><img src="design/area_tab/screen.png" width="200"/></td>
-    <td><img src="design/alerthood_profile_tab/screen.png" width="200"/></td>
-  </tr>
-</table>
-
----
-
 ## Features
 
 - **Safety Heatmap** — interactive dark map with green-to-red overlay based on incident density and severity, updated every 15 minutes
