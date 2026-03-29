@@ -54,11 +54,6 @@ export function MonitoredAreaCard({ area, onDelete }: MonitoredAreaCardProps) {
             </button>
           )}
         </div>
-        {area.isActive && (
-          <div className="absolute bottom-2 left-3 bg-black/80 px-2 py-1 border border-primary">
-            <span className="text-[10px] font-black uppercase text-primary italic">ACTIVE SHIELD ON</span>
-          </div>
-        )}
       </div>
 
       <div className="p-4 space-y-4">
