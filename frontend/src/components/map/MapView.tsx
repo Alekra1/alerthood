@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet'
+import { CircleMarker, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import { supabase } from '../../lib/supabase'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { useHeatmap } from '../../hooks/useHeatmap'
-import { MonitoredZone } from './MonitoredZone'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
-import { MOCK_PROFILE } from '../../data/mock'
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
   crime: 'CRIME',
@@ -24,12 +23,28 @@ const SEVERITY_PCT: Record<string, number> = {
 }
 
 const MAP_CENTER: [number, number] = [41.882, -87.631]
-const MAP_ZOOM = 14
+const MAP_ZOOM = 16
 const MAP_MIN_ZOOM = 3
 const WORLD_BOUNDS: [[number, number], [number, number]] = [[-85.051129, -180], [85.051129, 180]]
 
 const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
 const TILE_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
+
+// Module-level — survives route changes, resets only on full page reload
+let savedCenter: [number, number] | null = null
+let savedZoom: number | null = null
+let hasFlownToUser = false
+
+const userLocationIcon = L.divIcon({
+  html: `<div class="user-location-marker">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="dot"></div>
+  </div>`,
+  className: '',
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+})
 
 function weightToColor(weight: number): string {
   if (weight >= 0.75) return '#ef4444'
@@ -38,6 +53,7 @@ function weightToColor(weight: number): string {
   return '#22c55e'
 }
 
+// Flies to a position inside the Leaflet context
 function FlyTo({ position }: { position: [number, number] }) {
   const map = useMap()
   useEffect(() => {
@@ -46,16 +62,39 @@ function FlyTo({ position }: { position: [number, number] }) {
   return null
 }
 
+// Saves map center/zoom to module-level vars whenever the user pans or zooms
+function MapStateSync() {
+  useMapEvents({
+    moveend: (e) => {
+      const c = e.target.getCenter()
+      savedCenter = [c.lat, c.lng]
+      savedZoom = e.target.getZoom()
+    },
+  })
+  return null
+}
+
 export function MapView() {
   const { state: navState } = useLocation()
-  const [userPos, setUserPos] = useState<[number, number] | null>(null)
-  const [flyTo, setFlyTo] = useState<[number, number] | null>(
-    navState?.lat && navState?.lng ? [navState.lat, navState.lng] : null
+  const fromFeed = !!(navState?.lat && navState?.lng)
+
+  // On the very first visit (no saved position, not coming from feed), we wait
+  // for geolocation before rendering the map so it opens instantly at the user's
+  // location with zero fly animation.
+  const isFirstVisit = !savedCenter && !fromFeed
+
+  const [initialCenter, setInitialCenter] = useState<[number, number] | null>(
+    isFirstVisit ? null : (savedCenter ?? MAP_CENTER)
   )
+  const [userPos, setUserPos] = useState<[number, number] | null>(null)
+  // flyTo is only used for feed→marker navigation and the locate button
+  const [flyTo, setFlyTo] = useState<[number, number] | null>(
+    fromFeed ? [navState.lat, navState.lng] : null
+  )
+
   const [threats, setThreats] = useState<Threat[]>([])
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null)
-  const homeArea = MOCK_PROFILE.areas.find((a) => a.name === 'HOME')
-  const { cells, loading } = useHeatmap(homeArea?.id ?? null)
+  const { cells, loading } = useHeatmap(null)
 
   useEffect(() => {
     supabase.rpc('events_with_coords', { max_rows: 100 }).then(({ data, error }) => {
@@ -80,24 +119,67 @@ export function MapView() {
     })
   }, [])
 
-  function locateUser() {
+  useEffect(() => {
     navigator.geolocation.getCurrentPosition(
-      (pos) => { setFlyTo(null); setUserPos([pos.coords.latitude, pos.coords.longitude]) },
-      () => { /* permission denied or unavailable — keep default center */ },
-      { enableHighAccuracy: true, timeout: 10000 },
+      (pos) => {
+        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
+        setUserPos(coords)
+        if (isFirstVisit) {
+          // Open the map directly at user position — no fly animation
+          setInitialCenter(coords)
+          savedCenter = coords
+          savedZoom = MAP_ZOOM
+          hasFlownToUser = true
+        }
+      },
+      () => {
+        // Geolocation denied / unavailable on first visit — fall back to default
+        if (isFirstVisit) {
+          setInitialCenter(MAP_CENTER)
+          savedCenter = MAP_CENTER
+          savedZoom = MAP_ZOOM
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 },
+    )
+  }, [])
+
+  function centreOnUser() {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
+        setUserPos(coords)
+        setFlyTo([...coords])
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000 },
     )
   }
 
-  useEffect(() => {
-    locateUser()
-  }, [])
+  // Block render until we have an initial center (first-visit geolocation pending)
+  if (!initialCenter) {
+    return (
+      <div className="flex items-center justify-center w-full h-full bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="user-location-marker scale-150">
+            <div className="ring" />
+            <div className="ring" />
+            <div className="dot" />
+          </div>
+          <span className="font-headline text-[10px] uppercase tracking-widest text-on-surface/50 mt-2">
+            Locating you…
+          </span>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
         <MapContainer
-          center={MAP_CENTER}
-          zoom={MAP_ZOOM}
+          center={initialCenter}
+          zoom={savedZoom ?? MAP_ZOOM}
           minZoom={MAP_MIN_ZOOM}
           maxBounds={WORLD_BOUNDS}
           maxBoundsViscosity={1}
@@ -106,26 +188,13 @@ export function MapView() {
           attributionControl={false}
         >
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
+          <MapStateSync />
 
           {flyTo && <FlyTo position={flyTo} />}
-          {!flyTo && userPos && <FlyTo position={userPos} />}
 
           {userPos && (
-            <>
-              <CircleMarker
-                center={userPos}
-                radius={10}
-                pathOptions={{ color: '#ffffff', fillColor: '#4d9fff', fillOpacity: 1, weight: 2 }}
-              />
-              <CircleMarker
-                center={userPos}
-                radius={20}
-                pathOptions={{ color: '#4d9fff', fillColor: '#4d9fff', fillOpacity: 0.15, weight: 1 }}
-              />
-            </>
+            <Marker position={userPos} icon={userLocationIcon} />
           )}
-
-          {homeArea && <MonitoredZone area={homeArea} />}
 
           {threats.map((threat) => (
             <ThreatMarker
@@ -173,7 +242,7 @@ export function MapView() {
       )}
 
       <button
-        onClick={locateUser}
+        onClick={centreOnUser}
         className="fixed bottom-44 right-6 w-12 h-12 bg-surface-container border-2 border-black shadow-hard active:translate-x-[2px] active:translate-y-[2px] active:shadow-none flex items-center justify-center z-40 transition-none"
         aria-label="Center map on my location"
       >

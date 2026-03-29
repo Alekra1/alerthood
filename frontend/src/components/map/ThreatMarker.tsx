@@ -29,7 +29,6 @@ export function ThreatMarker({ threat, onSelect, isSelected }: ThreatMarkerProps
             fillOpacity: 0.15,
             weight: 0,
           }}
-          eventHandlers={{ click: () => onSelect(threat) }}
         />
       )}
       <CircleMarker
