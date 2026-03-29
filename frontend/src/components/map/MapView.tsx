@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
-import { apiGet } from '../../lib/api'
 import { supabase } from '../../lib/supabase'
 import { getCachedUserLocation, setCachedUserLocation } from '../../lib/userLocation'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
@@ -40,13 +39,6 @@ interface EventRow {
   location_label: string | null
   source_type: string | null
   source_url: string | null
-}
-
-interface AreaDetectResponse {
-  area: {
-    id: string
-    name?: string | null
-  } | null
 }
 
 const MAP_CENTER: [number, number] = [20, 0]
@@ -327,15 +319,12 @@ export function MapView() {
     let locationLabel = 'Your current location'
 
     try {
-      try {
-        const areaData = await apiGet<AreaDetectResponse>('/api/areas/detect', {
-          lat: String(userPos[0]),
-          lng: String(userPos[1]),
-        })
-        detectedAreaId = areaData.area?.id ?? null
-        locationLabel = areaData.area?.name ?? locationLabel
-      } catch {
-        // Area detection is best-effort; continue without it
+      const { data: areaRows } = await supabase.rpc('find_nearest_area', {
+        user_point: `SRID=4326;POINT(${userPos[1]} ${userPos[0]})`,
+      })
+      if (areaRows && areaRows.length > 0) {
+        detectedAreaId = areaRows[0].id ?? null
+        locationLabel = areaRows[0].name ?? locationLabel
       }
 
       const { data: { user } } = await supabase.auth.getUser()
