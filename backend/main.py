@@ -16,6 +16,7 @@ from services.uk_police_scraper import run_uk_police_scraper
 from services.openweather_scraper import run_openweather_scraper
 from services.historical_import import import_acled_data
 from services.neighborhood_scores import refresh_all_scores
+from services.notify import dispatch_recent_notifications
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ async def scraper_loop():
                 if isinstance(result, Exception):
                     names = ["GDELT", "USGS", "NWS", "UK Police", "OpenWeather"]
                     logger.error("%s scraper failed: %s", names[i], result, exc_info=result)
+            await dispatch_recent_notifications(since_minutes=interval // 60 + 5)
             await refresh_all_scores()
         except Exception:
             logger.exception("Scraper loop iteration failed; will retry next cycle")
