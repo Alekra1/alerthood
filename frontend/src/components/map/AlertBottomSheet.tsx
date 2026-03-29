@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Threat } from '../../types'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -29,6 +29,26 @@ export function AlertBottomSheet({ threat, onClose }: AlertBottomSheetProps) {
   const [upvotes, setUpvotes] = useState(threat.upvotes)
   const [downvotes, setDownvotes] = useState(threat.downvotes)
 
+  // Load real vote counts and current user's vote on mount
+  useEffect(() => {
+    async function loadVotes() {
+      const [{ data: allVotes }, { data: myVote }] = await Promise.all([
+        supabase.from('event_votes').select('vote').eq('event_id', threat.id),
+        user
+          ? supabase.from('event_votes').select('vote').eq('event_id', threat.id).eq('user_id', user.id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+      if (allVotes) {
+        setUpvotes(allVotes.filter((v) => v.vote === 1).length)
+        setDownvotes(allVotes.filter((v) => v.vote === -1).length)
+      }
+      if (myVote) {
+        setVote(myVote.vote === 1 ? 'up' : 'down')
+      }
+    }
+    loadVotes()
+  }, [threat.id, user])
+
   async function handleVote(dir: 'up' | 'down') {
     if (!user) return
     const removing = vote === dir
@@ -42,12 +62,14 @@ export function AlertBottomSheet({ threat, onClose }: AlertBottomSheetProps) {
       setVote(dir)
     }
     if (removing) {
-      await supabase.from('event_votes').delete().match({ user_id: user.id, event_id: threat.id })
+      const { error } = await supabase.from('event_votes').delete().match({ user_id: user.id, event_id: threat.id })
+      if (error) console.error('vote delete error:', error)
     } else {
-      await supabase.from('event_votes').upsert(
+      const { error } = await supabase.from('event_votes').upsert(
         { user_id: user.id, event_id: threat.id, vote: dir === 'up' ? 1 : -1 },
         { onConflict: 'user_id,event_id' }
       )
+      if (error) console.error('vote upsert error:', error)
     }
   }
 
