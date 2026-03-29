@@ -113,7 +113,7 @@ export function ThreatCard({ threat, initialVote = null, onViewMap }: ThreatCard
               className={`flex items-center gap-1.5 transition-none ${vote === 'up' ? 'text-error' : ''}`}
               aria-label={`Upvote (${upvotes})`}
             >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: vote === 'up' ? "'FILL' 1" : "'FILL' 0" }}>thumb_up</span>
+              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: vote === 'up' ? "'FILL' 1" : "'FILL' 0" }}>arrow_upward</span>
               <span className="font-label font-bold text-xs">{upvotes}</span>
             </button>
             <button
@@ -121,7 +121,7 @@ export function ThreatCard({ threat, initialVote = null, onViewMap }: ThreatCard
               className={`flex items-center gap-1.5 transition-none ${vote === 'down' ? 'text-error' : ''}`}
               aria-label={`Downvote (${downvotes})`}
             >
-              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: vote === 'down' ? "'FILL' 1" : "'FILL' 0" }}>thumb_down</span>
+              <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: vote === 'down' ? "'FILL' 1" : "'FILL' 0" }}>arrow_downward</span>
               <span className="font-label font-bold text-xs">{downvotes}</span>
             </button>
           </div>
