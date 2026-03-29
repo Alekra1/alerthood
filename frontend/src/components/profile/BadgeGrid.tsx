@@ -1,20 +1,9 @@
 import type { Badge } from '../../types'
 
-const COLOR_MAP: Record<Badge['color'], string> = {
+const COLOR_CLASS: Record<Badge['color'], string> = {
   primary: 'text-primary',
   secondary: 'text-secondary',
   tertiary: 'text-tertiary',
-}
-
-// CSS filters to recolour the black SVGs to theme colours
-const FILTER_MAP: Record<Badge['color'], string> = {
-  primary:   'invert(29%) sepia(97%) saturate(500%) hue-rotate(190deg) brightness(95%)',
-  secondary: 'invert(40%) sepia(60%) saturate(400%) hue-rotate(130deg) brightness(90%)',
-  tertiary:  'invert(35%) sepia(50%) saturate(600%) hue-rotate(270deg) brightness(90%)',
-}
-
-function colorToFilter(color: Badge['color']) {
-  return FILTER_MAP[color]
 }
 
 interface BadgeGridProps {
@@ -34,18 +23,21 @@ export function BadgeGrid({ badges }: BadgeGridProps) {
             key={badge.id}
             className={[
               'border-2 border-black shadow-hard p-3 rounded-lg flex flex-col items-center text-center gap-2',
-              badge.earned
-                ? 'bg-surface-container'
-                : 'bg-surface-container-low opacity-40',
+              badge.earned ? 'bg-surface-container' : 'bg-surface-container opacity-35',
             ].join(' ')}
           >
-            <img
-              src={badge.icon}
-              alt={badge.name}
-              className={`w-7 h-7 ${badge.earned ? COLOR_MAP[badge.color] : 'opacity-40'}`}
-              style={{ filter: badge.earned ? colorToFilter(badge.color) : 'none' }}
-            />
-            <span className="text-[10px] font-bold leading-none uppercase">{badge.name}</span>
+            <span
+              className={[
+                'material-symbols-outlined text-2xl',
+                badge.earned ? COLOR_CLASS[badge.color] : 'text-on-surface/30',
+              ].join(' ')}
+              style={badge.earned ? { fontVariationSettings: "'FILL' 1" } : undefined}
+            >
+              {badge.icon}
+            </span>
+            <span className="text-[10px] font-bold leading-none uppercase tracking-wide">
+              {badge.name}
+            </span>
           </div>
         ))}
       </div>
