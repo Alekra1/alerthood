@@ -20,17 +20,17 @@ RETURNS TABLE (
 ) LANGUAGE sql STABLE AS $$
   SELECT
     a.id, a.name, a.slug, a.area_type,
-    a.safety_score, a.safety_color,
-    a.crime_count AS event_count_90d,
+    NULL::numeric AS safety_score, a.safety_color,
+    NULL::integer AS event_count_90d,
     p.name AS parent_name,
     extensions.st_asgeojson(
-      extensions.st_simplify(
+      extensions.st_simplifypreservetopology(
         a.boundary,
         CASE
           WHEN zoom_level >= 15 THEN 0.00001
           WHEN zoom_level >= 12 THEN 0.0001
           WHEN zoom_level >= 10 THEN 0.001
-          ELSE 0.01
+          ELSE 0.005
         END
       )
     ) AS geojson

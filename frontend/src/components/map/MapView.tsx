@@ -11,6 +11,7 @@ import { useNeighborhoods } from '../../hooks/useNeighborhoods'
 import type { NeighborhoodFeature } from '../../hooks/useNeighborhoods'
 import { ThreatMarker } from './ThreatMarker'
 import { AlertBottomSheet } from './AlertBottomSheet'
+import { DistrictBottomSheet } from './DistrictBottomSheet'
 import { AddEventModal } from './AddEventModal'
 import type { AddEventFormValues } from './AddEventModal'
 
@@ -48,8 +49,9 @@ interface AreaDetectResponse {
   } | null
 }
 
-const MAP_CENTER: [number, number] = [41.882, -87.631]
+const MAP_CENTER: [number, number] = [20, 0]
 const MAP_ZOOM = 16
+const MAP_FALLBACK_ZOOM = 3
 const MAP_MIN_ZOOM = 3
 const WORLD_BOUNDS: [[number, number], [number, number]] = [[-85.051129, -180], [85.051129, 180]]
 
@@ -132,7 +134,7 @@ function MapStateSync() {
   return null
 }
 
-function NeighborhoodLayer() {
+function NeighborhoodLayer({ onDistrictClick }: { onDistrictClick: (props: NeighborhoodFeature['properties']) => void }) {
   const [bounds, setBounds] = useState<{
     minLat: number; minLng: number; maxLat: number; maxLng: number
   } | null>(null)
@@ -152,6 +154,14 @@ function NeighborhoodLayer() {
     },
   })
 
+  // Create a custom pane below the default overlayPane so markers stay on top
+  useEffect(() => {
+    if (!map.getPane('neighborhoodPane')) {
+      const pane = map.createPane('neighborhoodPane')
+      pane.style.zIndex = '200'
+    }
+  }, [map])
+
   // Trigger initial load
   useEffect(() => {
     const b = map.getBounds()
@@ -166,12 +176,14 @@ function NeighborhoodLayer() {
 
   const { geojson } = useNeighborhoods(bounds, zoom)
 
-  // Update the Leaflet layer imperatively to avoid unmount/remount flicker
+  // Update the Leaflet layer imperatively — swap atomically to avoid flicker
   useEffect(() => {
     const layer = geoJsonRef.current
     if (!layer || !geojson) return
-    layer.clearLayers()
+    // Only clear + replace when we have features; prevents disappearance
+    // when crossing zoom thresholds (city ↔ neighborhood)
     if (geojson.features.length > 0) {
+      layer.clearLayers()
       layer.addData(geojson as any)
     }
   }, [geojson])
@@ -189,6 +201,7 @@ function NeighborhoodLayer() {
           fillColor: color,
           fillOpacity: 0.1,
           opacity: 0.8,
+          pane: 'neighborhoodPane',
         }
       }}
       onEachFeature={(feature, layer) => {
@@ -197,6 +210,7 @@ function NeighborhoodLayer() {
           `<strong>${props.name}</strong><br/>Safety: ${Math.round(props.safety_score)}%`,
           { sticky: true, className: '!bg-black/80 !text-white !border-black !text-xs !font-mono !rounded-none' }
         )
+        layer.on('click', () => onDistrictClick(props))
       }}
     />
   )
@@ -228,6 +242,7 @@ export function MapView() {
   const [isAddEventOpen, setIsAddEventOpen] = useState(false)
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false)
   const [addEventError, setAddEventError] = useState<string | null>(null)
+  const [selectedDistrict, setSelectedDistrict] = useState<NeighborhoodFeature['properties'] | null>(null)
   const { cells, loading } = useHeatmap(null)
 
   async function loadThreats(): Promise<Threat[]> {
@@ -262,11 +277,11 @@ export function MapView() {
         }
       })
       .catch(() => {
-        // Geolocation denied / unavailable on first visit — fall back to default
+        // Geolocation denied / unavailable on first visit — fall back to world view
         if (isFirstVisit) {
           setInitialCenter(MAP_CENTER)
           savedCenter = MAP_CENTER
-          savedZoom = MAP_ZOOM
+          savedZoom = MAP_FALLBACK_ZOOM
         }
       })
   }, [])
@@ -400,7 +415,7 @@ export function MapView() {
       <div className="absolute inset-0 z-0">
         <MapContainer
           center={initialCenter}
-          zoom={savedZoom ?? MAP_ZOOM}
+          zoom={savedZoom ?? MAP_FALLBACK_ZOOM}
           minZoom={MAP_MIN_ZOOM}
           maxBounds={WORLD_BOUNDS}
           maxBoundsViscosity={1}
@@ -411,7 +426,7 @@ export function MapView() {
           <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
           <MapStateSync />
 
-          <NeighborhoodLayer />
+          <NeighborhoodLayer onDistrictClick={(props) => { setSelectedThreat(null); setSelectedDistrict(props) }} />
 
           {flyTo && <FlyTo position={flyTo} />}
 
@@ -456,7 +471,14 @@ export function MapView() {
         </div>
       )}
 
-      {selectedThreat && (
+      {selectedDistrict && (
+        <DistrictBottomSheet
+          district={selectedDistrict}
+          onClose={() => setSelectedDistrict(null)}
+        />
+      )}
+
+      {selectedThreat && !selectedDistrict && (
         <AlertBottomSheet
           threat={selectedThreat}
           onClose={() => setSelectedThreat(null)}

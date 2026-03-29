@@ -64,3 +64,14 @@ export async function apiPatch(path: string, body: unknown): Promise<void> {
     throw new Error(data.detail ?? `API error ${res.status}`)
   }
 }
+
+export async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(new URL(path, BASE_URL).toString(), {
+    method: 'DELETE',
+    headers: await getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.detail ?? `API error ${res.status}`)
+  }
+}

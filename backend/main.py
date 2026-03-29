@@ -7,30 +7,35 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from routers import events, areas
+from routers.neighborhoods import router as neighborhoods_router
 from routers.routes import router as routes_router
 from routers.scores import router as scores_router
-from routers.neighborhoods import router as neighborhoods_router
 from services.scraper import run_scraper
 from services.uk_police_scraper import run_uk_police_scraper
 from services.meteoalarm_scraper import run_meteoalarm_scraper
 from services.emsc_scraper import run_emsc_scraper
 from services.gdacs_scraper import run_gdacs_scraper
 from services.bg_news_scraper import run_bg_news_scraper
+from services.gnews_scraper import run_gnews_scraper
 from services.neighborhood_scores import refresh_all_scores
 from services.notify import dispatch_recent_notifications
-from services.boundary_ingestion import ingest_all_cities
+from services.boundary_ingestion import ingest_all_cities, ingest_neighborhoods_for_city
+
+from db import get_supabase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+OVERPASS_RATE_LIMIT_SECONDS = 5
 
 
 async def scraper_loop():
     settings = get_settings()
     interval = settings.scraper_interval_minutes * 60
 
-    # One-time: ingest neighborhood boundaries if none exist yet
+    # One-time: ingest neighborhood boundaries if none exist,
+    # or ingest for cities missing neighborhoods
     try:
-        from db import get_supabase
         sb = get_supabase()
         boundary_check = (
             sb.table("areas")
@@ -41,9 +46,34 @@ async def scraper_loop():
             .execute()
         )
         if not boundary_check.count:
-            logger.info("No neighborhood boundaries found — running initial ingestion...")
+            logger.info("No neighborhood boundaries found — running full ingestion...")
             results = await ingest_all_cities()
             logger.info("Boundary ingestion complete: %s", results)
+        else:
+            # Check for cities with no neighborhoods and ingest them
+            cities = (
+                sb.table("areas")
+                .select("id, name, country_code")
+                .eq("area_type", "city")
+                .eq("is_active", True)
+                .execute()
+            )
+            for city in (cities.data or []):
+                cc = city.get("country_code", "")
+                if not cc:
+                    continue
+                child_check = (
+                    sb.table("areas")
+                    .select("id", count="exact")
+                    .eq("parent_id", city["id"])
+                    .limit(1)
+                    .execute()
+                )
+                if not child_check.count:
+                    logger.info("City %s has no neighborhoods — ingesting...", city["name"])
+                    count = await ingest_neighborhoods_for_city(city["id"], cc)
+                    logger.info("Ingested %d neighborhoods for %s", count, city["name"])
+                    await asyncio.sleep(OVERPASS_RATE_LIMIT_SECONDS)
     except Exception:
         logger.exception("Boundary ingestion failed — will retry next startup")
 
@@ -57,9 +87,10 @@ async def scraper_loop():
                 run_emsc_scraper(),
                 run_gdacs_scraper(),
                 run_bg_news_scraper(),
+                run_gnews_scraper(),
                 return_exceptions=True,
             )
-            names = ["GDELT", "UK Police", "MeteoAlarm", "EMSC", "GDACS", "BG News"]
+            names = ["GDELT", "UK Police", "MeteoAlarm", "EMSC", "GDACS", "BG News", "GNews"]
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     logger.error("%s scraper failed: %s", names[i], result, exc_info=result)
@@ -98,9 +129,9 @@ app.add_middleware(
 
 app.include_router(events.router)
 app.include_router(areas.router)
+app.include_router(neighborhoods_router)
 app.include_router(routes_router)
 app.include_router(scores_router)
-app.include_router(neighborhoods_router)
 
 
 @app.get("/health")

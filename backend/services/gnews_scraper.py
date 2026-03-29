@@ -13,7 +13,7 @@ import logging
 from datetime import datetime, timezone
 
 from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderServiceError
+from geopy.exc import GeopyError
 from gnews import GNews
 
 from db import get_supabase
@@ -38,7 +38,7 @@ def _geocode_city(city: str) -> tuple[float, float] | None:
         location = _geocoder.geocode(city, timeout=10)
         if location:
             return (location.latitude, location.longitude)
-    except GeocoderServiceError as e:
+    except GeopyError as e:
         logger.warning("Geocoding failed for '%s': %s", city, e)
     return None
 
@@ -109,16 +109,27 @@ async def run_gnews_scraper() -> None:
     events_to_insert: list[dict] = []
     seen_urls: set[str] = set()
 
+    # Group areas by unique city — geocode and query once per city, not per area
+    city_to_areas: dict[str, list[dict]] = {}
     for area in areas:
         city = (area.get("city") or area.get("name") or "").strip()
-        if not city:
-            continue
+        if city:
+            city_to_areas.setdefault(city, []).append(area)
 
+    city_coords: dict[str, tuple[float, float]] = {}
+    for city in city_to_areas:
         coords = await loop.run_in_executor(None, _geocode_city, city)
-        if not coords:
+        if coords:
+            city_coords[city] = coords
+        else:
             logger.warning("GNews scraper: could not geocode '%s', skipping", city)
+        await asyncio.sleep(1.1)  # Nominatim policy: max 1 req/s
+
+    for city, city_areas in city_to_areas.items():
+        if city not in city_coords:
             continue
-        lat, lng = coords
+        lat, lng = city_coords[city]
+        representative_area = city_areas[0]  # use first area for event; area_id set below
 
         for keyword_str, threat_type, severity in THREAT_QUERIES:
             query = f"{city} {keyword_str}"
@@ -129,7 +140,7 @@ async def run_gnews_scraper() -> None:
                 continue
 
             for article in articles:
-                event = _build_event(article, area, threat_type, severity, lat, lng)
+                event = _build_event(article, representative_area, threat_type, severity, lat, lng)
                 if not event:
                     continue
                 url = event["source_url"]
@@ -142,7 +153,7 @@ async def run_gnews_scraper() -> None:
         logger.info("GNews scraper: no articles found")
         return
 
-    logger.info("GNews scraper: %d articles across %d areas", len(events_to_insert), len(areas))
+    logger.info("GNews scraper: %d articles across %d unique cities", len(events_to_insert), len(city_coords))
 
     inserted = insert_events_batch(db, events_to_insert, "GNews")
     logger.info("GNews scraper: inserted %d/%d events", inserted, len(events_to_insert))

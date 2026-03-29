@@ -2,13 +2,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getCachedUserLocation } from '../../lib/userLocation'
 import { useAreaDetect } from '../../hooks/useAreas'
 import { useScores } from '../../hooks/useScores'
+import { useAlertPrefs } from '../../hooks/useAlertPrefs'
 import { supabase } from '../../lib/supabase'
 import type { Threat, ThreatCategory, ThreatSeverity } from '../../types'
 import { SafetyScoreGauge } from './SafetyScoreGauge'
 import { ActiveAlertCard } from './ActiveAlertCard'
 import { MiniHeatmap } from './MiniHeatmap'
 import { RecentIncidentsList } from './RecentIncidentsList'
-import { AIBriefPlaceholder } from './AIBriefPlaceholder'
+import { AIAreaBrief } from './AIAreaBrief'
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
 
 const THREAT_TYPE_MAP: Record<string, ThreatCategory> = {
   crime: 'CRIME',
@@ -38,6 +49,7 @@ export function AreaSummaryView() {
 
   const { area, detect, loading: areaLoading, error: areaError } = useAreaDetect()
   const { scores, loading: scoresLoading, error: scoresError } = useScores()
+  const { showNearest } = useAlertPrefs()
 
   const [events, setEvents] = useState<Threat[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
@@ -91,12 +103,15 @@ export function AreaSummaryView() {
     return () => { cancelled = true }
   }, [])
 
+  // Re-fetch events scoped to the detected area via PostGIS boundary containment.
+  // Falls back to empty while area is loading — avoids showing cross-city events.
   useEffect(() => {
+    if (!area?.id) return
     let cancelled = false
     setEventsLoading(true)
 
     supabase
-      .rpc('events_with_coords', { max_rows: 20 })
+      .rpc('events_in_area', { target_area_id: area.id, max_rows: 50 })
       .then(({ data, error }) => {
         if (cancelled) return
         if (error) { setEventsError(error.message); return }
@@ -133,7 +148,7 @@ export function AreaSummaryView() {
       })
 
     return () => { cancelled = true }
-  }, [])
+  }, [area?.id])
 
   const detectInitiated = useRef(false)
 
@@ -152,13 +167,24 @@ export function AreaSummaryView() {
   const score = areaScore?.safety_score ?? 50
   const risk = getRiskLevel(score)
 
-  // Active alert: high/critical from last 24h
-  const activeAlert = events.find(
+  // Events are already scoped to the detected area via PostGIS (events_in_area).
+  // Optionally sort by proximity if showNearest is on; no cross-area filtering needed.
+  const localEvents = coords && showNearest
+    ? [...events]
+        .filter((e) => e.lat && e.lng)
+        .sort((a, b) =>
+          haversineKm(coords.lat, coords.lng, a.lat, a.lng) -
+          haversineKm(coords.lat, coords.lng, b.lat, b.lng),
+        )
+    : events
+
+  // Active alert: high/critical from last 24h within the area
+  const activeAlert = localEvents.find(
     (e) => (e.severity === 'HIGH' || e.severity === 'CRITICAL') && e.minutesAgo <= 1440,
   ) ?? null
 
-  // Recent incidents: last 48h, up to 5
-  const recentEvents = events
+  // Recent incidents: last 48h, up to 5, within the area
+  const recentEvents = localEvents
     .filter((e) => e.minutesAgo <= 2880)
     .slice(0, 5)
 
@@ -242,7 +268,16 @@ export function AreaSummaryView() {
       )}
 
       {/* 5.3 Active Alert (conditional) */}
-      {activeAlert && <ActiveAlertCard event={activeAlert} />}
+      {!eventsLoading && area && (
+        activeAlert
+          ? <ActiveAlertCard event={activeAlert} />
+          : (
+            <div className="flex items-center gap-3 px-4 py-3 rounded border border-on-surface/10 bg-on-surface/5">
+              <span className="material-symbols-outlined text-xl text-on-surface-variant opacity-50">check_circle</span>
+              <p className="font-body text-sm text-on-surface-variant">No active alerts in your area.</p>
+            </div>
+          )
+      )}
 
       {/* 5.4 Mini Heatmap */}
       {!eventsLoading && recentEvents.length > 0 && (
@@ -262,8 +297,20 @@ export function AreaSummaryView() {
         </p>
       )}
 
-      {/* 5.6 AI Brief Placeholder */}
-      <AIBriefPlaceholder />
+      {/* 5.6 AI Area Brief — shown as soon as area resolves, score is optional */}
+      {area && !eventsLoading && !scoresLoading && (
+        <AIAreaBrief
+          areaId={area.id}
+          areaName={area.name as string}
+          safetyScore={score}
+          riskLevel={risk.label}
+          crimeCount={areaScore?.crime_count ?? 0}
+          crimeRatePerKm2={areaScore?.crime_rate_per_km2 ?? 0}
+          scoreUpdatedAt={areaScore?.score_updated_at ?? null}
+          activeAlert={activeAlert}
+          recentEvents={recentEvents}
+        />
+      )}
     </div>
   )
 }

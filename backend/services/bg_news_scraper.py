@@ -80,8 +80,8 @@ async def _dedup(db, items: list[dict]) -> list[dict]:
         result = db.table("events").select("source_url").in_("source_url", urls).execute()
         known = {row["source_url"] for row in (result.data or [])}
     except Exception as e:
-        logger.warning("Dedup query failed: %s — proceeding without dedup", e)
-        return items
+        logger.error("Dedup query failed: %s — aborting to prevent duplicates", e)
+        return []
 
     before = len(items)
     items = [i for i in items if i["url"] not in known]

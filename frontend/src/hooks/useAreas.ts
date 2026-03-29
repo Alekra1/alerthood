@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { apiGet, apiPost, apiPatch } from '../lib/api'
+import { apiGet, apiPost, apiPatch, apiDelete } from '../lib/api'
 
 interface DetectedArea {
   id: string
@@ -43,6 +43,10 @@ export function useAreaSubscriptions() {
     })
   }, [])
 
+  const unsubscribe = useCallback(async (areaId: string) => {
+    await apiDelete(`/api/areas/${areaId}/subscribe`)
+  }, [])
+
   const updateNotificationPrefs = useCallback(
     async (subscriptionId: string, prefs: Record<string, boolean | string>) => {
       await apiPatch(`/api/subscriptions/${subscriptionId}/notifications`, prefs)
@@ -50,5 +54,5 @@ export function useAreaSubscriptions() {
     [],
   )
 
-  return { subscribe, updateNotificationPrefs }
+  return { subscribe, unsubscribe, updateNotificationPrefs }
 }
