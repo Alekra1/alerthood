@@ -10,11 +10,10 @@ from routers import events, areas
 from routers.routes import router as routes_router
 from routers.scores import router as scores_router
 from services.scraper import run_scraper
-from services.usgs_scraper import run_usgs_scraper
-from services.nws_scraper import run_nws_scraper
 from services.uk_police_scraper import run_uk_police_scraper
-from services.openweather_scraper import run_openweather_scraper
-from services.historical_import import import_acled_data
+from services.meteoalarm_scraper import run_meteoalarm_scraper
+from services.emsc_scraper import run_emsc_scraper
+from services.gdacs_scraper import run_gdacs_scraper
 from services.neighborhood_scores import refresh_all_scores
 from services.notify import dispatch_recent_notifications
 
@@ -30,15 +29,15 @@ async def scraper_loop():
             logger.info("Running all scrapers...")
             results = await asyncio.gather(
                 run_scraper(),
-                run_usgs_scraper(),
-                run_nws_scraper(),
                 run_uk_police_scraper(),
-                run_openweather_scraper(),
+                run_meteoalarm_scraper(),
+                run_emsc_scraper(),
+                run_gdacs_scraper(),
                 return_exceptions=True,
             )
+            names = ["GDELT", "UK Police", "MeteoAlarm", "EMSC", "GDACS"]
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    names = ["GDELT", "USGS", "NWS", "UK Police", "OpenWeather"]
                     logger.error("%s scraper failed: %s", names[i], result, exc_info=result)
             await dispatch_recent_notifications(since_minutes=interval // 60 + 5)
             await refresh_all_scores()
@@ -56,13 +55,6 @@ def _scraper_task_done(task: asyncio.Task):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # One-time historical import on first boot (skips if already imported)
-    try:
-        count = await import_acled_data(days_back=90, limit=500)
-        logger.info(f"Historical import: {count} events from ACLED")
-    except Exception as e:
-        logger.error(f"Historical import failed: {e}", exc_info=True)
-
     task = asyncio.create_task(scraper_loop())
     task.add_done_callback(_scraper_task_done)
     yield

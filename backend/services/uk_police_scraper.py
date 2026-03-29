@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 import httpx
 
 from db import get_supabase
+from services.insert_events import insert_events_batch
 
 logger = logging.getLogger(__name__)
 
@@ -181,14 +182,7 @@ async def run_uk_police_scraper():
         for crime in to_insert:
             crime["area_id"] = area["id"]
 
-        inserted = 0
-        for i in range(0, len(to_insert), 50):
-            chunk = to_insert[i : i + 50]
-            try:
-                db.table("events").insert(chunk).execute()
-                inserted += len(chunk)
-            except Exception:
-                logger.exception("Failed to insert UK Police crimes chunk for %s", area["name"])
+        inserted = insert_events_batch(db, to_insert, "UK Police")
 
         total_inserted += inserted
 

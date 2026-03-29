@@ -18,6 +18,7 @@ import httpx
 from supabase import Client
 
 from db import get_supabase
+from services.insert_events import insert_events_batch
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ CAMEO_TO_THREAT: dict[str, str] = {
 }
 
 # Minimum Goldstein scale magnitude to include (filters out low-impact events)
-MIN_GOLDSTEIN_MAGNITUDE = -5.0
+MIN_GOLDSTEIN_MAGNITUDE = -2.0
 
 # GDELT CSV column indices
 class _Col:
@@ -208,13 +209,6 @@ async def run_scraper():
 
     logger.info("Matched %d/%d events to areas", len(matched), len(events))
 
-    inserted = 0
-    for i in range(0, len(matched), 50):
-        chunk = matched[i : i + 50]
-        try:
-            db.table("events").insert(chunk).execute()
-            inserted += len(chunk)
-        except Exception:
-            logger.exception("Failed to insert chunk %d-%d of %d events", i, i + len(chunk), len(events))
+    inserted = insert_events_batch(db, matched, "GDELT")
 
     logger.info("Inserted %d/%d events into Supabase", inserted, len(matched))

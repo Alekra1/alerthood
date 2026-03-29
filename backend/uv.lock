@@ -13,6 +13,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
+    { name = "feedparser" },
     { name = "geopy" },
     { name = "httpx" },
     { name = "pydantic-settings" },
@@ -28,6 +29,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = "==0.115.0" },
+    { name = "feedparser", specifier = ">=6.0.12" },
     { name = "geopy", specifier = "==2.4.1" },
     { name = "httpx", specifier = "==0.27.2" },
     { name = "pydantic-settings", specifier = "==2.5.2" },
@@ -424,6 +426,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/88/f7e28100fa7ff4a26a3493ad7a5d45d70f6de858c05f5c34aca3570c5839/fastar-0.9.0-pp311-pypy311_pp73-musllinux_1_2_armv7l.whl", hash = "sha256:7bf6958bb6f94e5ec522e4a255b8e940d3561ad973f0be5dde6115b5a0854af5", size = 1039106, upload-time = "2026-03-20T14:26:07.686Z" },
     { url = "https://files.pythonhosted.org/packages/c0/de/52c578180fdaaf0f3289de8a878f1ac070f7e3e18a0689d3fd44dd7dae2c/fastar-0.9.0-pp311-pypy311_pp73-musllinux_1_2_i686.whl", hash = "sha256:c210b839c0a33cf8d08270963ad237bcb63029dddf6d6025333f7e5ca63930bd", size = 1080754, upload-time = "2026-03-20T14:26:20.299Z" },
     { url = "https://files.pythonhosted.org/packages/a4/45/1ea024be428ad9d89e9f738c9379507e97df9f9ed97e50e4a1d10ff90fef/fastar-0.9.0-pp311-pypy311_pp73-musllinux_1_2_x86_64.whl", hash = "sha256:fad70e257daefb42bab68dcd68beaf2e2a99da056d65f2c9f988449a4e869306", size = 1031304, upload-time = "2026-03-20T14:26:33.294Z" },
+]
+
+[[package]]
+name = "feedparser"
+version = "6.0.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "sgmllib3k" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/79/db7edb5e77d6dfbc54d7d9df72828be4318275b2e580549ff45a962f6461/feedparser-6.0.12.tar.gz", hash = "sha256:64f76ce90ae3e8ef5d1ede0f8d3b50ce26bcce71dd8ae5e82b1cd2d4a5f94228", size = 286579, upload-time = "2025-09-10T13:33:59.486Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/eb/c96d64137e29ae17d83ad2552470bafe3a7a915e85434d9942077d7fd011/feedparser-6.0.12-py3-none-any.whl", hash = "sha256:6bbff10f5a52662c00a2e3f86a38928c37c48f77b3c511aedcd51de933549324", size = 81480, upload-time = "2025-09-10T13:33:58.022Z" },
 ]
 
 [[package]]
@@ -1129,6 +1143,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/de/df/5008954f546608596
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cd/1a/b3a3e9f6520493fed7997af4d2de7965d71549c62f994a8fd15f2ecd519e/sentry_sdk-2.56.0-py2.py3-none-any.whl", hash = "sha256:5afafb744ceb91d22f4cc650c6bd048ac6af5f7412dcc6c59305a2e36f4dbc02", size = 451568, upload-time = "2026-03-24T09:56:34.807Z" },
 ]
+
+[[package]]
+name = "sgmllib3k"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9e/bd/3704a8c3e0942d711c1299ebf7b9091930adae6675d7c8f476a7ce48653c/sgmllib3k-1.0.0.tar.gz", hash = "sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9", size = 5750, upload-time = "2010-08-24T14:33:52.445Z" }
 
 [[package]]
 name = "shellingham"
