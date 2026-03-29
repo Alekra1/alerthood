@@ -23,16 +23,29 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
-def _build_google_maps_url(waypoints: list[RouteWaypoint]) -> str:
+def _build_google_maps_url(waypoints: list[RouteWaypoint], avoided: int) -> str:
     """Build a Google Maps directions URL with waypoints."""
     if len(waypoints) < 2:
         return ""
     origin = f"{waypoints[0].lat},{waypoints[0].lng}"
     destination = f"{waypoints[-1].lat},{waypoints[-1].lng}"
+    
+    # If no threats avoided, just route directly
+    if avoided == 0:
+        return f"https://www.google.com/maps/dir/{origin}/{destination}/data=!4m2!4m1!3e2"
+
     url = f"https://www.google.com/maps/dir/{origin}"
-    for wp in waypoints[1:-1]:
+    
+    # Downsample intermediate waypoints to max 2 points to avoid forcing 10 mandatory stops
+    mid_points = waypoints[1:-1]
+    if len(mid_points) > 2:
+        step = max(1, len(mid_points) // 3)
+        mid_points = [mid_points[step], mid_points[step * 2]]
+        
+    for wp in mid_points:
         url += f"/{wp.lat},{wp.lng}"
-    url += f"/{destination}"
+        
+    url += f"/{destination}/data=!4m2!4m1!3e2"
     return url
 
 
@@ -129,7 +142,7 @@ async def calculate_safe_route(req: RouteRequest) -> SafeRouteResponse:
 
     return SafeRouteResponse(
         waypoints=waypoints,
-        google_maps_url=_build_google_maps_url(waypoints),
+        google_maps_url=_build_google_maps_url(waypoints, avoided),
         avoided_events=avoided,
         distance_km=round(total_distance, 2),
     )

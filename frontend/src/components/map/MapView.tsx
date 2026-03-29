@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CircleMarker, GeoJSON as GeoJSONLayer, MapContainer, Marker, Popup, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
@@ -74,6 +74,34 @@ function weightToColor(weight: number): string {
   if (weight >= 0.25) return '#eab308'
   return '#22c55e'
 }
+
+type HeatmapCellData = {
+  lat: number
+  lng: number
+  weight: number
+  event_count: number
+}
+
+const MemoizedHeatmapCells = memo(({ cells }: { cells: HeatmapCellData[] }) => {
+  return (
+    <>
+      {cells.map((cell, i) => (
+        <CircleMarker
+          key={`${cell.lat}-${cell.lng}-${i}`}
+          center={[cell.lat, cell.lng]}
+          radius={Math.max(6, cell.weight * 20)}
+          pathOptions={{
+            color: weightToColor(cell.weight),
+            fillColor: weightToColor(cell.weight),
+            fillOpacity: 0.6,
+            weight: 1,
+            interactive: false,
+          }}
+        />
+      ))}
+    </>
+  )
+})
 
 function mapEventRowToThreat(event: EventRow): Threat {
   return {
@@ -447,25 +475,7 @@ export function MapView() {
             />
           ))}
 
-          {cells.map((cell, i) => (
-            <CircleMarker
-              key={`${cell.lat}-${cell.lng}-${i}`}
-              center={[cell.lat, cell.lng]}
-              radius={Math.max(6, cell.weight * 20)}
-              pathOptions={{
-                color: weightToColor(cell.weight),
-                fillColor: weightToColor(cell.weight),
-                fillOpacity: 0.6,
-                weight: 1,
-              }}
-            >
-              <Popup>
-                <span className="font-bold">{cell.event_count} events</span>
-                <br />
-                Risk: {Math.round(cell.weight * 100)}%
-              </Popup>
-            </CircleMarker>
-          ))}
+          <MemoizedHeatmapCells cells={cells} />
 
           {routeDestPending && (
             <Marker position={[routeDestPending.lat, routeDestPending.lng]}>
