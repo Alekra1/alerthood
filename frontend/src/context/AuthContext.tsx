@@ -9,7 +9,6 @@ interface Profile {
   display_name: string | null
   avatar_url: string | null
   karma: number
-  trust_score: number
 }
 
 interface AuthContextValue {
@@ -34,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchProfile(userId: string) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, username, display_name, avatar_url, karma, trust_score')
+      .select('id, email, username, display_name, avatar_url, karma')
       .eq('id', userId)
       .single()
 
@@ -60,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: created } = await supabase
       .from('profiles')
-      .select('id, email, username, display_name, avatar_url, karma, trust_score')
+      .select('id, email, username, display_name, avatar_url, karma')
       .eq('id', userId)
       .single()
     setProfile(created ?? null)

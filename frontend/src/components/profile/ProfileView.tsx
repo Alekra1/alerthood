@@ -117,7 +117,6 @@ export function ProfileView() {
         <MetricsBento
           karma={profile?.karma ?? 0}
           karmaWeekly={0}
-          trustScore={Number(profile?.trust_score ?? 50)}
         />
 
         <BadgeGrid badges={MOCK_PROFILE.badges} />

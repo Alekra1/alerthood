@@ -83,7 +83,6 @@ export const MOCK_PROFILE: UserProfile = {
   email: 'alex@email.com',
   karma: 1250,
   karmaWeekly: 42,
-  trustScore: 98,
   streakDays: 7,
   badges: [
     { id: 'b1', name: 'First Responder', icon: 'medical_services', color: 'primary', earned: true },

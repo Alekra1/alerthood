@@ -44,7 +44,6 @@ export interface UserProfile {
   email: string
   karma: number
   karmaWeekly: number
-  trustScore: number
   streakDays: number
   badges: Badge[]
   areas: MonitoredArea[]
